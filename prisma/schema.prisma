@@ -1,0 +1,81 @@
+// schema.prisma
+
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===== ENUMS =====
+enum UserRole {
+  ADMIN    // administrador de la organización
+  EMPLOYEE // empleado / staff
+}
+
+// ===== MODELOS =====
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  users     User[]   @relation("OrganizationUsers")
+  clients   Client[] @relation("OrganizationClients")
+}
+
+model User {
+  id             String        @id @default(cuid())
+  firstName      String
+  lastName       String
+  phone          String
+  countryCode    String
+  email          String        @unique
+  alias          String?
+  role           UserRole
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relación con organización
+  organization   Organization? @relation("OrganizationUsers", fields: [organizationId], references: [id])
+  organizationId String?
+
+  // Login codes asociados
+  loginCodes     LoginCode[]
+}
+
+model Client {
+  id             String        @id @default(cuid())
+  name           String
+  phone          String
+  email          String?
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relación con organización
+  organization   Organization? @relation("OrganizationClients", fields: [organizationId], references: [id])
+  organizationId String?
+}
+
+model LoginCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relación con usuario opcional
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+}

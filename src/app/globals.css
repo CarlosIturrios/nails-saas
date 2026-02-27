@@ -1,0 +1,132 @@
+/* // nails-saas/src/app/globals.css */
+
+@import "tailwindcss";
+
+:root {
+  --gold-1: #D4AF37;
+  --gold-2: #FFD700;
+  --gold-3: #FFEC8B;
+  --amber-soft: #FFFBEB;
+  --amber-border: #FDE68A;
+}
+
+body {
+  font-family: var(--font-poppins), sans-serif;
+  background: linear-gradient(to bottom right,
+      #ffffff,
+      #fffbeb,
+      #fef3c7);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-playfair), serif;
+}
+
+/* ====== ANIMACIONES ====== */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes sparkle {
+
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ====== UTILIDADES ====== */
+
+.shimmer-text {
+  background: linear-gradient(90deg,
+      var(--gold-1),
+      var(--gold-2),
+      #FFFACD,
+      var(--gold-2),
+      var(--gold-1));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+.float-anim {
+  animation: float 3s ease-in-out infinite;
+}
+
+.sparkle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(circle, #FFD700 0%, transparent 70%);
+  border-radius: 50%;
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+.card-glam {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--amber-border);
+  transition: all 0.3s ease;
+}
+
+.card-glam:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 45px rgba(212, 175, 55, 0.25);
+}
+
+.btn-glam {
+  background: linear-gradient(135deg,
+      var(--gold-2),
+      var(--gold-1),
+      #B8860B);
+  transition: all 0.3s ease;
+}
+
+.btn-glam:hover {
+  transform: scale(1.02);
+  background: linear-gradient(135deg,
+      var(--gold-3),
+      var(--gold-2),
+      var(--gold-1));
+}
+
+.section-divider {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #FFD700, transparent);
+}
+
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out;
+}
