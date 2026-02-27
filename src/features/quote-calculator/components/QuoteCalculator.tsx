@@ -148,7 +148,7 @@ export default function QuoteCalculator() {
       {/* DECORACIONES */}
       <section className="card-glam rounded-2xl p-6 shadow-lg">
         <h2 className="font-medium mb-4">
-          💎 Decoraciones
+          ✨ Decoraciones (Precio por uña)
         </h2>
 
         <div className="space-y-3">

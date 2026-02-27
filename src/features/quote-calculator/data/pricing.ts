@@ -70,7 +70,7 @@ export const decorationLabels = {
   espejo: "🪞 Efecto Espejo",
   arcoiris: "🌈 Efecto Arcoíris",
   aurora: "🌌 Efecto Aurora",
-  relleno: "🎨 Relleno",
+  relleno: "🖌️ Relleno",
   reposicion: "🔄 Reposición",
   dijes: "🧿 Dijes",
   stickers: "🧩 Stickers",
