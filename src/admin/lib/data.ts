@@ -21,6 +21,14 @@ interface ListAdminRecordsParams {
 }
 
 export type AdminFormOptions = Record<string, AdminFieldOption[]>;
+export type AdminListItem = Record<string, unknown> & { id: string };
+export interface AdminListResult {
+  items: AdminListItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
 
 const INSENSITIVE_MODE = Prisma.QueryMode.insensitive;
 
@@ -386,7 +394,7 @@ async function syncOrganizationMembers(organizationId: string, userIds: string[]
 export async function listAdminRecords(
   config: AdminModelConfig,
   params: ListAdminRecordsParams = {}
-) {
+): Promise<AdminListResult> {
   const page = Math.max(1, params.page ?? 1);
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? config.pageSize ?? 10));
   const search = params.search?.trim() ?? "";
@@ -833,7 +841,7 @@ export async function listAdminRecords(
   ]);
 
   return {
-    items,
+    items: items as AdminListItem[],
     page,
     pageSize,
     total,
