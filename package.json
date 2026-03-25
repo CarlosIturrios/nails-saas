@@ -7,12 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "seed:quote-configs": "node scripts/seed-quote-configs.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.4.1",
     "@prisma/client": "^7.4.1",
     "@tanstack/react-query": "^5.90.21",
+    "@vercel/blob": "^2.3.1",
     "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "dom-to-image-more": "^3.7.2",
