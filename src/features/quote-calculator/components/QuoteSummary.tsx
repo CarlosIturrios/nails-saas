@@ -3,15 +3,13 @@ import { decorationLabels } from "../data/pricing"
 import { useRef } from "react"
 import html2canvas from "html2canvas"
 import { PRECIO_TONO_EXTRA } from "../data/pricing"
+import type { SizeOption } from "../hooks/useQuoteCalculator"
+import { pricing } from "../data/pricing"
 
-type SizeOption = {
-    id: string
-    label: string
-    price: number
-}
+type PricingConfig = typeof pricing
 
 type Props = {
-    pricing: any
+    pricing: PricingConfig
     selectedSizes: Record<string, SizeOption[]>
     extraTones: number
     decorations: Record<string, number>
@@ -85,7 +83,7 @@ export default function QuoteSummary({
         // Técnicas
         Object.entries(selectedSizes).forEach(([tech, items]) => {
             items.forEach(item => {
-                addRow(`${pricing[tech].label} - ${item.label}`, `$${item.price}`)
+                addRow(`${pricing[tech as keyof PricingConfig].label} - ${item.label}`, `$${item.price}`)
             })
         })
 
@@ -154,7 +152,7 @@ export default function QuoteSummary({
                 {Object.entries(selectedSizes).flatMap(([tech, items]) =>
                     items.map(item => (
                         <div key={`${tech}-${item.id}`} className="flex justify-between">
-                            <span>{pricing[tech].label} - {item.label}</span>
+                            <span>{pricing[tech as keyof PricingConfig].label} - {item.label}</span>
                             <span>${item.price}</span>
                         </div>
                     ))

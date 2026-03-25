@@ -10,9 +10,15 @@ import {
   decorationPrices
 } from "../data/pricing"
 
+export type SizeOption = {
+  id: string
+  label: string
+  price: number
+}
+
 export function useQuoteCalculator() {
   const [selectedTechniques, setSelectedTechniques] = useState<string[]>([])
-  const [selectedSizes, setSelectedSizes] = useState<Record<string, any[]>>({})
+  const [selectedSizes, setSelectedSizes] = useState<Record<string, SizeOption[]>>({})
   const [extraTones, setExtraTones] = useState(0)
   const [decorations, setDecorations] = useState<Record<string, number>>({
     pedreria: 0,
@@ -47,7 +53,7 @@ export function useQuoteCalculator() {
     return true
   }
 
-  const selectSize = (tech: string, option: any) => {
+  const selectSize = (tech: string, option: SizeOption) => {
     const techPricing = pricing[tech as keyof typeof pricing]
 
     if (techPricing.multiSelect) {
@@ -79,7 +85,7 @@ export function useQuoteCalculator() {
   const total = useMemo(() => {
     let sum = 0
 
-    Object.values(selectedSizes).forEach((items: any[]) => {
+    Object.values(selectedSizes).forEach((items) => {
       items.forEach(item => sum += item.price)
     })
 

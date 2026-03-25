@@ -42,9 +42,9 @@ export default function LoginPage() {
         setMessageType("error");
         setMessage(data.error || "Error enviando código");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessageType("error");
-      setMessage(err.message || "Error enviando código");
+      setMessage(err instanceof Error ? err.message : "Error enviando código");
     } finally {
       setLoading(false);
     }
@@ -66,12 +66,12 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (res.status === 200) {
-        window.location.href = "/cotizaciones";
+        window.location.href = "/cotizaciones/v2";
       } else {
         setMessageType("error");
         setMessage(data.error || "Código inválido");
       }
-    } catch (err) {
+    } catch {
       setMessageType("error");
       setMessage("Código inválido");
     } finally {

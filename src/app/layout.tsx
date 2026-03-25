@@ -3,6 +3,8 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
+import { GlobalHomeButton } from "@/src/components/ui/GlobalHomeButton";
+import { GlobalOrganizationSwitcherServer } from "@/src/components/organization/GlobalOrganizationSwitcherServer";
 
 import { Playfair_Display, Poppins } from "next/font/google"
 
@@ -24,7 +26,7 @@ export const metadata: Metadata = {
     "Calculadora profesional de cotizaciones para manicuristas modernas.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -33,6 +35,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${playfair.variable} ${poppins.variable} antialiased`}>
         {children}
+        <GlobalOrganizationSwitcherServer />
+        <GlobalHomeButton />
       </body>
     </html>
   );

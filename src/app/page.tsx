@@ -1,6 +1,13 @@
-// nails-saas/src/app/page.tsx
-import { redirect } from 'next/navigation'
+import { redirect } from "next/navigation";
 
-export default function Home() {
-  redirect('/cotizaciones')
+import { requireOrganizationContext } from "@/src/lib/organizations/context";
+
+export default async function Page() {
+  const context = await requireOrganizationContext();
+
+  if (context.memberships.length > 1 && !context.currentOrganizationId) {
+    redirect("/select-organization");
+  }
+
+  redirect("/home");
 }

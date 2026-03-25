@@ -16,8 +16,18 @@ datasource db {
 
 // ===== ENUMS =====
 enum UserRole {
-  ADMIN    // administrador de la organización
+  ADMIN // administrador de la organización
   EMPLOYEE // empleado / staff
+}
+
+enum UserOrganizationRole {
+  ADMIN
+  MEMBER
+}
+
+enum ExtraPricingType {
+  PER_UNIT
+  FIXED
 }
 
 // ===== MODELOS =====
@@ -29,39 +39,37 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   // Relaciones
-  users     User[]   @relation("OrganizationUsers")
-  clients   Client[] @relation("OrganizationClients")
+  memberships UserOrganization[]
+  clients     Client[]            @relation("OrganizationClients")
+  quoteConfig OrganizationConfig?
 }
 
 model User {
-  id             String        @id @default(cuid())
-  firstName      String
-  lastName       String
-  phone          String
-  countryCode    String
-  email          String        @unique
-  alias          String?
-  role           UserRole
-  active         Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  // Relación con organización
-  organization   Organization? @relation("OrganizationUsers", fields: [organizationId], references: [id])
-  organizationId String?
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  phone       String
+  countryCode String
+  email       String   @unique
+  alias       String?
+  role        UserRole
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Login codes asociados
-  loginCodes     LoginCode[]
+  loginCodes  LoginCode[]
+  memberships UserOrganization[]
 }
 
 model Client {
-  id             String        @id @default(cuid())
-  name           String
-  phone          String
-  email          String?
+  id    String  @id @default(cuid())
+  name  String
+  phone String
+  email String?
 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relación con organización
   organization   Organization? @relation("OrganizationClients", fields: [organizationId], references: [id])
@@ -76,6 +84,120 @@ model LoginCode {
   createdAt DateTime @default(now())
 
   // Relación con usuario opcional
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    String?
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String?
+}
+
+model UserOrganization {
+  id             String               @id @default(cuid())
+  userId         String
+  organizationId String
+  role           UserOrganizationRole @default(MEMBER)
+  createdAt      DateTime             @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model OrganizationConfig {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  businessName   String
+  businessType   String   @default("general")
+  logoUrl        String?
+  quoteTemplate  String   @default("modern")
+  primaryColor   String   @default("#1f2937")
+  secondaryColor String   @default("#fffaf4")
+  currency       String   @default("MXN")
+  language       String   @default("es-MX")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  serviceCategories ServiceCategory[]
+  extraOptions      ExtraOption[]
+  businessRules     BusinessRules?
+  uiConfig          UIConfig?
+
+  @@index([organizationId])
+}
+
+model ServiceCategory {
+  id                   String   @id @default(cuid())
+  organizationConfigId String
+  name                 String
+  description          String?
+  multiSelect          Boolean  @default(false)
+  sortOrder            Int      @default(0)
+  metadata             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organizationConfig OrganizationConfig @relation(fields: [organizationConfigId], references: [id], onDelete: Cascade)
+  options            ServiceOption[]
+
+  @@index([organizationConfigId, sortOrder])
+}
+
+model ServiceOption {
+  id          String   @id @default(cuid())
+  categoryId  String
+  name        String
+  description String?
+  price       Int
+  sortOrder   Int      @default(0)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, sortOrder])
+}
+
+model ExtraOption {
+  id                   String           @id @default(cuid())
+  organizationConfigId String
+  name                 String
+  description          String?
+  price                Int
+  pricingType          ExtraPricingType @default(PER_UNIT)
+  includedQuantity     Int              @default(0)
+  sortOrder            Int              @default(0)
+  metadata             Json?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  organizationConfig OrganizationConfig @relation(fields: [organizationConfigId], references: [id], onDelete: Cascade)
+
+  @@index([organizationConfigId, sortOrder])
+}
+
+model BusinessRules {
+  id                    String   @id @default(cuid())
+  organizationConfigId  String   @unique
+  maxSelectedCategories Int?
+  maxQuantityPerExtra   Int?
+  maxTotalSelections    Int?
+  extraPricingRules     Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organizationConfig OrganizationConfig @relation(fields: [organizationConfigId], references: [id], onDelete: Cascade)
+}
+
+model UIConfig {
+  id                   String   @id @default(cuid())
+  organizationConfigId String   @unique
+  titles               Json?
+  texts                Json?
+  labels               Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  organizationConfig OrganizationConfig @relation(fields: [organizationConfigId], references: [id], onDelete: Cascade)
 }

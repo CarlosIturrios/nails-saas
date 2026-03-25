@@ -10,10 +10,11 @@ export async function POST(req: Request) {
 
     await sendLoginCode(email);
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Error enviando código";
     console.error(err);
     return NextResponse.json(
-      { error: err.message || "Error enviando código" },
+      { error: message },
       { status: 400 }
     );
   }
