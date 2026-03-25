@@ -22,6 +22,8 @@ interface ListAdminRecordsParams {
 
 export type AdminFormOptions = Record<string, AdminFieldOption[]>;
 
+const INSENSITIVE_MODE = Prisma.QueryMode.insensitive;
+
 function getModelDelegate(model: string) {
   const delegate = (prisma as unknown as Record<string, unknown>)[model];
 
@@ -132,7 +134,7 @@ function buildWhereClause(
       OR: config.searchFields.map((fieldName) => ({
         [fieldName]: {
           contains: search,
-          mode: "insensitive",
+          mode: INSENSITIVE_MODE,
         },
       })),
     });
@@ -397,25 +399,25 @@ export async function listAdminRecords(
             {
               firstName: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
               lastName: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
               email: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
               phone: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
@@ -424,7 +426,7 @@ export async function listAdminRecords(
                   organization: {
                     name: {
                       contains: search,
-                      mode: "insensitive",
+                      mode: INSENSITIVE_MODE,
                     },
                   },
                 },
@@ -490,7 +492,7 @@ export async function listAdminRecords(
             {
               name: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
@@ -501,19 +503,19 @@ export async function listAdminRecords(
                       {
                         firstName: {
                           contains: search,
-                          mode: "insensitive",
+                          mode: INSENSITIVE_MODE,
                         },
                       },
                       {
                         lastName: {
                           contains: search,
-                          mode: "insensitive",
+                          mode: INSENSITIVE_MODE,
                         },
                       },
                       {
                         email: {
                           contains: search,
-                          mode: "insensitive",
+                          mode: INSENSITIVE_MODE,
                         },
                       },
                     ],
@@ -593,19 +595,19 @@ export async function listAdminRecords(
                   {
                     firstName: {
                       contains: search,
-                      mode: "insensitive",
+                      mode: INSENSITIVE_MODE,
                     },
                   },
                   {
                     lastName: {
                       contains: search,
-                      mode: "insensitive",
+                      mode: INSENSITIVE_MODE,
                     },
                   },
                   {
                     email: {
                       contains: search,
-                      mode: "insensitive",
+                      mode: INSENSITIVE_MODE,
                     },
                   },
                 ],
@@ -615,7 +617,7 @@ export async function listAdminRecords(
               organization: {
                 name: {
                   contains: search,
-                  mode: "insensitive",
+                  mode: INSENSITIVE_MODE,
                 },
               },
             },
@@ -672,26 +674,26 @@ export async function listAdminRecords(
             {
               name: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
               phone: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
               email: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
               organization: {
                 name: {
                   contains: search,
-                  mode: "insensitive",
+                  mode: INSENSITIVE_MODE,
                 },
               },
             },
@@ -741,13 +743,13 @@ export async function listAdminRecords(
             {
               email: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
               code: {
                 contains: search,
-                mode: "insensitive",
+                mode: INSENSITIVE_MODE,
               },
             },
             {
@@ -756,19 +758,19 @@ export async function listAdminRecords(
                   {
                     firstName: {
                       contains: search,
-                      mode: "insensitive",
+                      mode: INSENSITIVE_MODE,
                     },
                   },
                   {
                     lastName: {
                       contains: search,
-                      mode: "insensitive",
+                      mode: INSENSITIVE_MODE,
                     },
                   },
                   {
                     email: {
                       contains: search,
-                      mode: "insensitive",
+                      mode: INSENSITIVE_MODE,
                     },
                   },
                 ],
