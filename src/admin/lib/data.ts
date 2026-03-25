@@ -23,7 +23,7 @@ interface ListAdminRecordsParams {
 export type AdminFormOptions = Record<string, AdminFieldOption[]>;
 
 function getModelDelegate(model: string) {
-  const delegate = (prisma as Record<string, unknown>)[model];
+  const delegate = (prisma as unknown as Record<string, unknown>)[model];
 
   if (!delegate) {
     throw new Error(`Modelo Prisma no disponible: ${model}`);
