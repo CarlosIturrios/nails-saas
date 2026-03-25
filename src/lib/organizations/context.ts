@@ -186,8 +186,14 @@ export async function getOrganizationContextForUser(userId: string) {
       role: user.role,
       active: user.active,
     },
-      memberships,
-      currentOrganizationId: currentMembership?.organizationId ?? null,
+    memberships: memberships.map((membership) => ({
+      ...membership,
+      organization: {
+        ...membership.organization,
+        logoUrl: membership.organization.quoteConfig?.logoUrl ?? null,
+      },
+    })),
+    currentOrganizationId: currentMembership?.organizationId ?? null,
     currentOrganization: currentMembership?.organization
       ? {
           ...currentMembership.organization,
