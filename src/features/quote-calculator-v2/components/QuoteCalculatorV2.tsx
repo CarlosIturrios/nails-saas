@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 
 import { AdminLogoutButton } from "@/src/admin/components/AdminLogoutButton";
 import Toast from "@/src/components/ui/Toast";
+import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo";
 import { OrganizationQuoteConfigView } from "@/src/features/quote-calculator-v2/lib/types";
 
 interface QuoteCalculatorV2Props {
@@ -261,6 +262,10 @@ export function QuoteCalculatorV2({
   canUseManualAdjustments = false,
 }: QuoteCalculatorV2Props) {
   const isLegacyTemplate = config.branding.quoteTemplate === "legacy_gica";
+  const effectiveLogoUrl = getEffectiveLogoUrl({
+    businessType: config.branding.businessType,
+    logoUrl: config.branding.logoUrl,
+  });
   const modernTheme =
     MODERN_TEMPLATE_THEMES[config.branding.quoteTemplate as keyof typeof MODERN_TEMPLATE_THEMES] ??
     MODERN_TEMPLATE_THEMES.modern;
@@ -499,9 +504,9 @@ export function QuoteCalculatorV2({
     header.style.padding = isLegacyTemplate ? "0 0 12px" : "28px 12px 12px";
     header.style.marginBottom = isLegacyTemplate ? "12px" : "18px";
 
-    if (config.branding.logoUrl) {
+    if (effectiveLogoUrl) {
       const logo = document.createElement("img");
-      logo.src = await resolveLogoSource(config.branding.logoUrl);
+      logo.src = await resolveLogoSource(effectiveLogoUrl);
       logo.alt = config.branding.businessName;
       logo.crossOrigin = "anonymous";
       logo.style.width = isLegacyTemplate ? "100px" : "180px";
@@ -734,10 +739,10 @@ export function QuoteCalculatorV2({
 
               <header className="relative text-center">
                 <div className="mb-4 flex justify-center">
-                  {config.branding.logoUrl ? (
+                  {effectiveLogoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={config.branding.logoUrl}
+                      src={effectiveLogoUrl}
                       alt={config.branding.businessName}
                       className="h-24 w-24 object-contain sm:h-28 sm:w-28"
                     />
@@ -1107,10 +1112,10 @@ export function QuoteCalculatorV2({
                   {organizationName}
                 </p>
                 <div className="mt-3 flex items-center gap-4">
-                  {config.branding.logoUrl ? (
+                  {effectiveLogoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={config.branding.logoUrl}
+                      src={effectiveLogoUrl}
                       alt={config.branding.businessName}
                       className="h-16 w-16 rounded-2xl border border-[#eadfcb] object-contain bg-white p-2"
                     />

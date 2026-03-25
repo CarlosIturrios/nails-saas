@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Toast from "@/src/components/ui/Toast";
 import { QuotationWizardLayout } from "@/src/features/quote-config-admin/components/QuotationWizardLayout";
 import { WizardStep } from "@/src/features/quote-config-admin/components/WizardStep";
+import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo";
 import {
   OrganizationQuoteConfigInput,
   OrganizationQuoteConfigView,
@@ -138,6 +139,10 @@ export function QuoteConfigWizard({
 
   const currentStep = wizardSteps[step];
   const nextStepLabel = wizardSteps[step + 1]?.label;
+  const effectiveLogoUrl = getEffectiveLogoUrl({
+    businessType: config.branding.businessType,
+    logoUrl: config.branding.logoUrl,
+  });
 
   const summaryStats = useMemo(
     () => ({
@@ -418,10 +423,10 @@ export function QuoteConfigWizard({
                 <span className="admin-label block text-sm font-medium">Logo</span>
                 <div className="admin-panel rounded-[24px] p-4 sm:p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    {config.branding.logoUrl ? (
+                    {effectiveLogoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={config.branding.logoUrl}
+                        src={effectiveLogoUrl}
                         alt={config.branding.businessName}
                         className="h-20 w-20 rounded-2xl border border-[#eadfcb] bg-white object-contain p-2"
                       />

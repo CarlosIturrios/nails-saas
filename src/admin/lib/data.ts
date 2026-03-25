@@ -1,6 +1,6 @@
 import "server-only";
 
-import { UserOrganizationRole, UserRole } from "@prisma/client";
+import { Prisma, UserOrganizationRole, UserRole } from "@prisma/client";
 
 import {
   AdminFieldConfig,
