@@ -26,6 +26,8 @@ interface V2PendingPageProps {
 
 export default async function V2PendingPage({ searchParams }: V2PendingPageProps) {
   const context = await requireCurrentOrganization();
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
   const query = await searchParams;
   const access = getOperationalFrontendAccess(
     context.user.role,
@@ -37,12 +39,15 @@ export default async function V2PendingPage({ searchParams }: V2PendingPageProps
     redirect(V2_ROUTES.capture);
   }
 
-  const range = resolveOperationsDateRange({
-    preset: query.preset,
-    date: query.date,
-    from: query.from,
-    to: query.to,
-  });
+  const range = resolveOperationsDateRange(
+    {
+      preset: query.preset,
+      date: query.date,
+      from: query.from,
+      to: query.to,
+    },
+    timeZone
+  );
 
   const [quotes, orders, quoteConfig] = await Promise.all([
     listQuotesForOrganization(context.currentOrganizationId, {
@@ -71,6 +76,7 @@ export default async function V2PendingPage({ searchParams }: V2PendingPageProps
 
       <PendingOperationsBoard
         locale="es-MX"
+        timeZone={timeZone}
         currency={quoteConfig.branding.currency}
         rangePreset={range.preset}
         anchorDate={range.anchorDate}

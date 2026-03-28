@@ -45,6 +45,7 @@ export async function POST(_request: Request, context: RouteContext) {
           typeof body.assignedToUserId === "string" ? body.assignedToUserId : null,
         scheduledFor:
           typeof body.scheduledFor === "string" ? body.scheduledFor : null,
+        timeZone: organizationContext.currentTimezone?.timezone ?? null,
       }
     );
 

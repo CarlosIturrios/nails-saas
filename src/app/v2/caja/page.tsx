@@ -14,6 +14,8 @@ interface V2CashPageProps {
 
 export default async function V2CashPage({ searchParams }: V2CashPageProps) {
   const context = await requireCurrentOrganization();
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
   const query = await searchParams;
   const access = getOperationalFrontendAccess(
     context.user.role,
@@ -25,9 +27,10 @@ export default async function V2CashPage({ searchParams }: V2CashPageProps) {
     redirect(V2_ROUTES.more);
   }
 
-  const selectedDate = normalizeCalendarDateParam(query.date);
+  const selectedDate = normalizeCalendarDateParam(query.date, timeZone);
   const cashSummary = await getServiceOrderCashSummary(context.currentOrganizationId, {
-    date: parseCalendarDateAtMidday(selectedDate),
+    date: parseCalendarDateAtMidday(selectedDate, timeZone),
+    timeZone,
     limit: 100,
   });
   const currency = cashSummary.orders[0]?.currency ?? "MXN";
@@ -42,6 +45,7 @@ export default async function V2CashPage({ searchParams }: V2CashPageProps) {
 
       <CashSummaryBoard
         locale="es-MX"
+        timeZone={timeZone}
         currency={currency}
         orderHrefPrefix={V2_ROUTES.orders}
         clientHrefPrefix={V2_ROUTES.clients}

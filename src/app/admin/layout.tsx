@@ -4,6 +4,7 @@ import {
 import { requireAdminPageUser } from "@/src/admin/lib/auth";
 import { AdminLogoutButton } from "@/src/admin/components/AdminLogoutButton";
 import { AdminSidebarNav } from "@/src/admin/components/AdminSidebarNav";
+import { TimezoneRuntime } from "@/src/components/timezone/TimezoneRuntime";
 import { V2_ROUTES } from "@/src/features/v2/routing";
 import Link from "next/link";
 
@@ -95,7 +96,21 @@ export default async function AdminLayout({
           </header>
 
           <main className="min-w-0 max-w-none flex-1 px-4 py-6 sm:px-6 lg:px-8 xl:px-10 lg:py-8">
-            {children}
+            <div className="space-y-4">
+              <TimezoneRuntime
+                userTimezone={currentUser.user.timezone}
+                detectedTimezone={currentUser.currentTimezone?.detectedTimezone ?? null}
+                organizationTimezone={currentUser.currentOrganization?.defaultTimezone ?? "UTC"}
+                resolvedTimezone={
+                  currentUser.currentTimezone?.timezone ??
+                  currentUser.currentOrganization?.defaultTimezone ??
+                  "UTC"
+                }
+                source={currentUser.currentTimezone?.source ?? "organization"}
+                showBanner={false}
+              />
+              <div>{children}</div>
+            </div>
           </main>
         </div>
       </div>

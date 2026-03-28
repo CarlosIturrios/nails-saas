@@ -35,6 +35,7 @@ export async function POST(req: Request) {
         email: body.email,
         phone: body.phone,
         countryCode: body.countryCode,
+        timezone: typeof body.timezone === "string" ? body.timezone : null,
         role:
           body.role === UserRole.SUPER_ADMIN
             ? UserRole.SUPER_ADMIN

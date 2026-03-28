@@ -58,6 +58,7 @@ export const models = {
       { name: "email", label: "Email", type: "email", required: true },
       { name: "phone", label: "Teléfono", type: "text", required: true },
       { name: "countryCode", label: "Lada", type: "text", required: true },
+      { name: "timezone", label: "Zona horaria", type: "text" },
       {
         name: "role",
         label: "Rol",
@@ -397,6 +398,7 @@ export const models = {
     searchFields: ["name"],
     fields: [
       { name: "name", label: "Nombre", type: "text", required: true },
+      { name: "defaultTimezone", label: "Zona horaria default", type: "text", required: true },
       {
         name: "memberNames",
         label: "Usuarios ligados",

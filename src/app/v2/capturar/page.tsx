@@ -24,6 +24,8 @@ export default async function V2CapturePage({
   searchParams,
 }: V2CapturePageProps) {
   const context = await requireCurrentOrganization();
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
   const query = await searchParams;
   const access = getOperationalFrontendAccess(
     context.user.role,
@@ -51,6 +53,7 @@ export default async function V2CapturePage({
     <div>
       <QuoteCalculatorV2
         config={config}
+        timeZone={timeZone}
         organizationName={context.currentOrganization?.name ?? config.branding.businessName}
         presentation={presentation}
         assignableUsers={assignableUsers}

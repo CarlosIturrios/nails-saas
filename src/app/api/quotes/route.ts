@@ -118,6 +118,7 @@ export async function POST(request: Request) {
       customerPhone: String(body.customerPhone ?? "").trim() || null,
       notes: String(body.notes ?? "").trim() || null,
       scheduledFor: String(body.scheduledFor ?? "").trim() || null,
+      timeZone: context.currentTimezone?.timezone ?? null,
       currency: String(body.currency ?? "MXN"),
       source: "quote_calculator_v2",
       snapshot:

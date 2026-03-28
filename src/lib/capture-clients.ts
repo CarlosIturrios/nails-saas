@@ -11,6 +11,13 @@ interface ResolveClientForCaptureInput {
   customerPhone?: string | null;
 }
 
+interface CreateOrganizationClientInput {
+  organizationId: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+}
+
 export async function resolveClientForCapture(input: ResolveClientForCaptureInput) {
   const explicitClientId = input.clientId?.trim() || null;
   const customerName = input.customerName?.trim() || null;
@@ -136,4 +143,71 @@ export async function resolveClientForCapture(input: ResolveClientForCaptureInpu
   });
 
   return createdClient.id;
+}
+
+export async function createOrganizationClient(input: CreateOrganizationClientInput) {
+  const name = input.name.trim();
+  const phone = input.phone?.trim() || null;
+  const email = input.email?.trim().toLowerCase() || null;
+
+  if (!name) {
+    throw new Error("El nombre es obligatorio");
+  }
+
+  if (phone) {
+    const existingByPhone = await prisma.client.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        phone,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingByPhone) {
+      throw new Error("Ya existe un cliente con ese teléfono en esta organización");
+    }
+  }
+
+  if (email) {
+    const existingByEmail = await prisma.client.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        email: {
+          equals: email,
+          mode: Prisma.QueryMode.insensitive,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingByEmail) {
+      throw new Error("Ya existe un cliente con ese correo en esta organización");
+    }
+  }
+
+  const client = await prisma.client.create({
+    data: {
+      organizationId: input.organizationId,
+      name,
+      phone: phone || "SIN_TELEFONO",
+      email,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+    },
+  });
+
+  return {
+    id: client.id,
+    name: client.name,
+    phone: client.phone === "SIN_TELEFONO" ? null : client.phone,
+    email: client.email,
+  };
 }

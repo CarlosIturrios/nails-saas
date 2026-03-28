@@ -14,7 +14,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AccountBreakdownCard } from "@/src/components/ui/AccountBreakdownCard";
 import { OperationsFiltersBar } from "@/src/components/ui/OperationsFiltersBar";
@@ -25,9 +25,11 @@ import {
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import { downloadQuoteImage } from "@/src/components/ui/downloadQuoteImage";
 import Toast from "@/src/components/ui/Toast";
+import { formatDate } from "@/src/lib/dates";
 
 interface ServiceOrdersBoardProps {
   locale: string;
+  timeZone: string;
   rangePreset: "day" | "week" | "month" | "custom" | "all";
   anchorDate: string;
   rangeFrom: string | null;
@@ -101,15 +103,17 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateLabel(value: string | null, locale: string) {
+function formatDateLabel(value: string | null, locale: string, timeZone: string) {
   if (!value) {
     return "Atención inmediata";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  });
 }
 
 function getNextStatus(status: ServiceOrderStatus) {
@@ -246,6 +250,7 @@ function OrderMetaRow({
 
 export function ServiceOrdersBoard({
   locale,
+  timeZone,
   rangePreset,
   anchorDate,
   rangeFrom,
@@ -276,6 +281,11 @@ export function ServiceOrdersBoard({
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
+  useEffect(() => {
+    setAssignmentValues(
+      Object.fromEntries(orders.map((order) => [order.id, order.assignedToUserId ?? ""]))
+    );
+  }, [orders]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const filteredOrders = useMemo(() => {
@@ -612,7 +622,7 @@ export function ServiceOrdersBoard({
 
                   <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <OrderMetaRow icon={<CalendarClock size={16} />} label="Momento">
-                      {formatDateLabel(order.scheduledFor, locale)}
+                      {formatDateLabel(order.scheduledFor, locale, timeZone)}
                     </OrderMetaRow>
                     <OrderMetaRow icon={<UserRound size={16} />} label="Responsable">
                       {order.assignedToName || "Sin asignar"}

@@ -15,15 +15,24 @@ import {
   Wrench,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { DownloadQuoteImageButton } from "@/src/components/ui/DownloadQuoteImageButton";
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import { ActionHint, StatusBadge } from "@/src/components/ui/OperationsUI";
 import Toast from "@/src/components/ui/Toast";
+import {
+  formatCalendarDate,
+  formatDate,
+  getTodayInTimezone,
+  getUtcTimestamp,
+  serializeDateTimeForApi,
+  toDatetimeLocalValue,
+} from "@/src/lib/dates";
 
 interface ServiceAgendaBoardProps {
   locale: string;
+  timeZone: string;
   selectedDate: string;
   canScheduleOrders: boolean;
   canProgressOrders: boolean;
@@ -91,26 +100,25 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatTime(value: string | null, locale: string) {
+function formatTime(value: string | null, locale: string, timeZone: string) {
   if (!value) {
     return "Sin horario";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+  });
 }
 
-function toDatetimeLocal(value: string | null) {
+function toDatetimeLocal(value: string | null, timeZone: string) {
   if (!value) {
     return "";
   }
 
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset();
-  const normalized = new Date(date.getTime() - offset * 60_000);
-  return normalized.toISOString().slice(0, 16);
+  return toDatetimeLocalValue(value, timeZone);
 }
 
 function getNextStatus(status: ServiceOrderStatus) {
@@ -185,9 +193,13 @@ function getOrderPriority(order: ServiceAgendaBoardProps["orders"][number]) {
   return 4;
 }
 
-function getOrderCategoryLabel(order: ServiceAgendaBoardProps["orders"][number], locale: string) {
+function getOrderCategoryLabel(
+  order: ServiceAgendaBoardProps["orders"][number],
+  locale: string,
+  timeZone: string
+) {
   if (order.scheduledFor) {
-    return `Cita ${formatTime(order.scheduledFor, locale)}`;
+    return `Cita ${formatTime(order.scheduledFor, locale, timeZone)}`;
   }
 
   return "Atención inmediata";
@@ -278,11 +290,12 @@ function getToneForOrder(order: ServiceAgendaBoardProps["orders"][number]) {
 }
 
 function formatSelectedDay(value: string, locale: string) {
-  return new Intl.DateTimeFormat(locale, {
+  return formatCalendarDate(value, {
+    locale,
     weekday: "long",
     day: "numeric",
     month: "long",
-  }).format(new Date(`${value}T12:00:00`));
+  });
 }
 
 function AgendaOverviewCard({
@@ -448,6 +461,7 @@ function buildAgendaOrderNewSaleHref(
 
 export function ServiceAgendaBoard({
   locale,
+  timeZone,
   selectedDate,
   canScheduleOrders,
   canProgressOrders,
@@ -471,7 +485,7 @@ export function ServiceAgendaBoard({
   const [scheduleValues, setScheduleValues] = useState<Record<string, string>>(
     () =>
       Object.fromEntries(
-        orders.map((order) => [order.id, toDatetimeLocal(order.scheduledFor)])
+        orders.map((order) => [order.id, toDatetimeLocal(order.scheduledFor, timeZone)])
       )
   );
   const [toast, setToast] = useState<{
@@ -481,6 +495,17 @@ export function ServiceAgendaBoard({
   const [assignmentValues, setAssignmentValues] = useState<Record<string, string>>(
     () => Object.fromEntries(orders.map((order) => [order.id, order.assignedToUserId ?? ""]))
   );
+
+  useEffect(() => {
+    setScheduleValues(
+      Object.fromEntries(
+        orders.map((order) => [order.id, toDatetimeLocal(order.scheduledFor, timeZone)])
+      )
+    );
+    setAssignmentValues(
+      Object.fromEntries(orders.map((order) => [order.id, order.assignedToUserId ?? ""]))
+    );
+  }, [orders, timeZone]);
 
   const filteredOrders = useMemo(() => {
     if (selectedAssignee === "all") {
@@ -502,8 +527,8 @@ export function ServiceAgendaBoard({
         return priorityDiff;
       }
 
-      const aTime = a.scheduledFor ? new Date(a.scheduledFor).getTime() : 0;
-      const bTime = b.scheduledFor ? new Date(b.scheduledFor).getTime() : 0;
+      const aTime = getUtcTimestamp(a.scheduledFor);
+      const bTime = getUtcTimestamp(b.scheduledFor);
       return aTime - bTime;
     });
     const scheduled = sorted.filter((order) => order.scheduledFor);
@@ -523,8 +548,8 @@ export function ServiceAgendaBoard({
           return priorityDiff;
         }
 
-        const aTime = a.scheduledFor ? new Date(a.scheduledFor).getTime() : 0;
-        const bTime = b.scheduledFor ? new Date(b.scheduledFor).getTime() : 0;
+        const aTime = getUtcTimestamp(a.scheduledFor);
+        const bTime = getUtcTimestamp(b.scheduledFor);
         return aTime - bTime;
       }),
     [filteredOrders]
@@ -545,7 +570,7 @@ export function ServiceAgendaBoard({
         {
         id: order.id,
         title: order.customerName || "Cliente mostrador",
-        badge: order.scheduledFor ? formatTime(order.scheduledFor, locale) : "Inmediata",
+        badge: order.scheduledFor ? formatTime(order.scheduledFor, locale, timeZone) : "Inmediata",
         subtitle: getActionHint(order.status),
         total: order.total,
         nextStatus,
@@ -611,7 +636,9 @@ export function ServiceAgendaBoard({
       const response = await fetch(`/api/service-orders/${orderId}/schedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduledFor: scheduleValues[orderId] || null }),
+        body: JSON.stringify({
+          scheduledFor: serializeDateTimeForApi(scheduleValues[orderId] || null, timeZone),
+        }),
       });
       const payload = await response.json();
 
@@ -691,11 +718,7 @@ export function ServiceAgendaBoard({
     router.push(`${agendaBasePath}?date=${date}`);
   }
 
-  const today = new Date();
-  const offset = today.getTimezoneOffset();
-  const todayString = new Date(today.getTime() - offset * 60_000)
-    .toISOString()
-    .slice(0, 10);
+  const todayString = getTodayInTimezone(timeZone);
   const selectedDayLabel = formatSelectedDay(selectedDate, locale);
 
   function renderOrderCard(order: ServiceAgendaBoardProps["orders"][number]) {
@@ -726,7 +749,7 @@ export function ServiceAgendaBoard({
               </span>
               <span className="inline-flex w-fit items-center gap-2 rounded-full border border-[#ddd1bf] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
                 {order.scheduledFor ? <CalendarClock size={14} /> : <Clock3 size={14} />}
-                {getOrderCategoryLabel(order, locale)}
+                {getOrderCategoryLabel(order, locale, timeZone)}
               </span>
             </div>
 

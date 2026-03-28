@@ -20,6 +20,8 @@ interface V2AgendaPageProps {
 
 export default async function V2AgendaPage({ searchParams }: V2AgendaPageProps) {
   const context = await requireCurrentOrganization();
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
   const query = await searchParams;
   const access = getOperationalFrontendAccess(
     context.user.role,
@@ -31,10 +33,11 @@ export default async function V2AgendaPage({ searchParams }: V2AgendaPageProps) 
     redirect(V2_ROUTES.pending);
   }
 
-  const selectedDate = normalizeCalendarDateParam(query.date);
+  const selectedDate = normalizeCalendarDateParam(query.date, timeZone);
   const [orders, assignableUsers, quoteConfig] = await Promise.all([
     listServiceOrdersForOrganization(context.currentOrganizationId, {
-      date: parseCalendarDateAtMidday(selectedDate),
+      date: parseCalendarDateAtMidday(selectedDate, timeZone),
+      timeZone,
       limit: 100,
     }),
     listAssignableUsersForOrganization(context.currentOrganizationId),
@@ -54,6 +57,7 @@ export default async function V2AgendaPage({ searchParams }: V2AgendaPageProps) 
 
       <ServiceAgendaBoard
         locale="es-MX"
+        timeZone={timeZone}
         selectedDate={selectedDate}
         orderHrefPrefix={V2_ROUTES.orders}
         quoteHrefPrefix={V2_ROUTES.quotes}

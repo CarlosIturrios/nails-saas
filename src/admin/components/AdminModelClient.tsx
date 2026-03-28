@@ -23,6 +23,7 @@ import { AdminModal } from "@/src/admin/components/AdminModal";
 import DataTable from "@/src/admin/components/DataTable";
 import DynamicForm from "@/src/admin/components/DynamicForm";
 import Toast from "@/src/components/ui/Toast";
+import { formatDate, toDatetimeLocalValue } from "@/src/lib/dates";
 
 interface AdminListResponse {
   items: Array<Record<string, unknown> & { id: string }>;
@@ -37,9 +38,10 @@ interface AdminModelClientProps {
   config: AdminModelConfig;
   initialData: AdminListResponse;
   initialFormOptions: Record<string, AdminFieldOption[]>;
+  timeZone: string;
 }
 
-function formatCellValue(value: unknown, type: string) {
+function formatCellValue(value: unknown, type: string, timeZone: string) {
   if (value === null || value === undefined || value === "") {
     return <span className="text-slate-400">-</span>;
   }
@@ -65,10 +67,12 @@ function formatCellValue(value: unknown, type: string) {
   }
 
   if (type === "date") {
-    return new Intl.DateTimeFormat("es-MX", {
+    return formatDate(String(value), {
+      locale: "es-MX",
+      timeZone,
       dateStyle: "medium",
       timeStyle: "short",
-    }).format(new Date(String(value)));
+    });
   }
 
   return String(value);
@@ -79,6 +83,7 @@ export function AdminModelClient({
   config,
   initialData,
   initialFormOptions,
+  timeZone,
 }: AdminModelClientProps) {
   const listFields = useMemo(() => getListFields(config), [config]);
   const editableFields = useMemo(() => getEditableFields(config), [config]);
@@ -165,7 +170,7 @@ export function AdminModelClient({
       const currentValue = row[field.name];
 
       if (field.type === "date" && currentValue) {
-        acc[field.name] = new Date(String(currentValue)).toISOString().slice(0, 16);
+        acc[field.name] = toDatetimeLocalValue(String(currentValue), timeZone);
         return acc;
       }
 
@@ -384,7 +389,7 @@ export function AdminModelClient({
             key: field.name,
             label: field.label,
             render: (row: Record<string, unknown>) =>
-              formatCellValue(row[field.name], field.type),
+              formatCellValue(row[field.name], field.type, timeZone),
           }))}
           rows={rows}
           loading={loading}

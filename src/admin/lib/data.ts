@@ -14,6 +14,7 @@ import {
   getEditableFields,
 } from "@/src/admin/config/models";
 import { prisma } from "@/src/lib/db";
+import { parseToUTC } from "@/src/lib/dates";
 import { initializeOrganizationQuoteConfigFromPreset } from "@/src/features/quote-calculator-v2/lib/config";
 import { normalizeQuoteConfigPreset } from "@/src/features/quote-calculator-v2/lib/presets";
 import { buildScopedMembershipWhere } from "@/src/lib/organizations/context";
@@ -119,7 +120,11 @@ function joinLabels(labels: string[]) {
   return `${labels.slice(0, 3).join(", ")} +${labels.length - 3}`;
 }
 
-function normalizeFieldValue(field: AdminFieldConfig, value: unknown) {
+function normalizeFieldValue(
+  field: AdminFieldConfig,
+  value: unknown,
+  timeZone?: string | null
+) {
   if (field.type === "multiselect") {
     return dedupeStringArray(value);
   }
@@ -153,7 +158,7 @@ function normalizeFieldValue(field: AdminFieldConfig, value: unknown) {
   }
 
   if (field.type === "date") {
-    return new Date(String(value));
+    return parseToUTC(String(value), timeZone ?? undefined);
   }
 
   return String(value);
@@ -211,6 +216,7 @@ export function sanitizePayload(
   payload: Record<string, unknown>,
   options: {
     includeNonPersisted?: boolean;
+    timeZone?: string | null;
   } = {}
 ) {
   const includeNonPersisted = options.includeNonPersisted ?? true;
@@ -221,7 +227,11 @@ export function sanitizePayload(
       continue;
     }
 
-    const normalizedValue = normalizeFieldValue(field, payload[field.name]);
+    const normalizedValue = normalizeFieldValue(
+      field,
+      payload[field.name],
+      options.timeZone
+    );
 
     if (
       field.required &&
@@ -1292,10 +1302,11 @@ export async function listAdminRecords(
 export async function createAdminRecord(
   config: AdminModelConfig,
   payload: Record<string, unknown>,
-  currentOrganizationId?: string | null
+  currentOrganizationId?: string | null,
+  timeZone?: string | null
 ) {
   if (config.model === "user") {
-    const data = sanitizePayload(config, payload);
+    const data = sanitizePayload(config, payload, { timeZone });
     const organizationIds = dedupeStringArray(data.organizationIds);
 
     const createdUser = await prisma.user.create({
@@ -1305,6 +1316,7 @@ export async function createAdminRecord(
         email: String(data.email),
         phone: String(data.phone),
         countryCode: String(data.countryCode),
+        timezone: data.timezone ? String(data.timezone) : null,
         active: Boolean(data.active ?? true),
         role:
           data.role === UserRole.SUPER_ADMIN
@@ -1320,13 +1332,14 @@ export async function createAdminRecord(
   }
 
   if (config.model === "organization") {
-    const data = sanitizePayload(config, payload);
+    const data = sanitizePayload(config, payload, { timeZone });
     const memberUserIds = dedupeStringArray(data.memberUserIds);
     const quoteConfigPreset = normalizeQuoteConfigPreset(data.quoteConfigPreset);
 
     const organization = await prisma.organization.create({
       data: {
         name: String(data.name),
+        defaultTimezone: String(data.defaultTimezone || "UTC"),
       },
     });
 
@@ -1340,7 +1353,7 @@ export async function createAdminRecord(
   }
 
   if (config.model === "userOrganization") {
-    const data = sanitizePayload(config, payload);
+    const data = sanitizePayload(config, payload, { timeZone });
 
     return prisma.userOrganization.create({
       data: {
@@ -1365,7 +1378,10 @@ export async function createAdminRecord(
   }
 
   const delegate = getModelDelegate(config.model);
-  const data = sanitizePayload(config, payload, { includeNonPersisted: false });
+  const data = sanitizePayload(config, payload, {
+    includeNonPersisted: false,
+    timeZone,
+  });
 
   if (currentOrganizationId && config.scopedByOrganization && config.scopeField !== "id") {
     data[config.scopeField ?? "organizationId"] = currentOrganizationId;
@@ -1378,10 +1394,11 @@ export async function updateAdminRecord(
   config: AdminModelConfig,
   id: string,
   payload: Record<string, unknown>,
-  currentOrganizationId?: string | null
+  currentOrganizationId?: string | null,
+  timeZone?: string | null
 ) {
   if (config.model === "user") {
-    const data = sanitizePayload(config, payload);
+    const data = sanitizePayload(config, payload, { timeZone });
     const organizationIds = dedupeStringArray(data.organizationIds);
 
     const updatedUser = await prisma.user.update({
@@ -1392,6 +1409,7 @@ export async function updateAdminRecord(
         email: String(data.email),
         phone: String(data.phone),
         countryCode: String(data.countryCode),
+        timezone: data.timezone ? String(data.timezone) : null,
         active: Boolean(data.active ?? true),
         role:
           data.role === UserRole.SUPER_ADMIN
@@ -1407,13 +1425,14 @@ export async function updateAdminRecord(
   }
 
   if (config.model === "organization") {
-    const data = sanitizePayload(config, payload);
+    const data = sanitizePayload(config, payload, { timeZone });
     const memberUserIds = dedupeStringArray(data.memberUserIds);
 
     const organization = await prisma.organization.update({
       where: { id },
       data: {
         name: String(data.name),
+        defaultTimezone: String(data.defaultTimezone || "UTC"),
       },
     });
 
@@ -1422,7 +1441,7 @@ export async function updateAdminRecord(
   }
 
   if (config.model === "userOrganization") {
-    const data = sanitizePayload(config, payload);
+    const data = sanitizePayload(config, payload, { timeZone });
 
     return prisma.userOrganization.update({
       where: { id },
@@ -1448,7 +1467,10 @@ export async function updateAdminRecord(
   }
 
   const delegate = getModelDelegate(config.model);
-  const data = sanitizePayload(config, payload, { includeNonPersisted: false });
+  const data = sanitizePayload(config, payload, {
+    includeNonPersisted: false,
+    timeZone,
+  });
   await ensureScopedRecordAccess(config, delegate, id, currentOrganizationId);
 
   return delegate.update({

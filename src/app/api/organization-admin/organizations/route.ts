@@ -3,8 +3,10 @@ import { UserOrganizationRole } from "@prisma/client";
 
 import {
   applyOrganizationCookies,
+  assertOrganizationAdminAccess,
   getOrganizationContextFromRequest,
   getOrganizationStateFromMemberships,
+  requireOrganizationAdminApiContext,
 } from "@/src/lib/organizations/context";
 import { prisma } from "@/src/lib/db";
 import {
@@ -12,6 +14,7 @@ import {
 } from "@/src/features/quote-calculator-v2/lib/config";
 import { normalizeQuoteConfigPreset } from "@/src/features/quote-calculator-v2/lib/presets";
 import { canCreateOrganizations } from "@/src/lib/authorization";
+import { sanitizeTimezone, UTC_TIMEZONE } from "@/src/lib/dates";
 
 export async function POST(request: Request) {
   try {
@@ -37,10 +40,14 @@ export async function POST(request: Request) {
     }
 
     const quoteConfigPreset = normalizeQuoteConfigPreset(body.quoteConfigPreset);
+    const defaultTimezone =
+      sanitizeTimezone(body.defaultTimezone, context.currentTimezone?.timezone ?? UTC_TIMEZONE) ??
+      UTC_TIMEZONE;
 
     const organization = await prisma.organization.create({
       data: {
         name,
+        defaultTimezone,
         memberships: {
           create: {
             userId: context.user.id,
@@ -76,6 +83,64 @@ export async function POST(request: Request) {
           error instanceof Error
             ? error.message
             : "Error creando la organización",
+      },
+      { status: 400 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const [body, context] = await Promise.all([
+      request.json(),
+      requireOrganizationAdminApiContext(),
+    ]);
+
+    const organizationId = String(
+      body.organizationId ?? context.currentOrganizationId ?? ""
+    ).trim();
+    const defaultTimezone = sanitizeTimezone(body.defaultTimezone);
+
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: "Selecciona una organización antes de continuar" },
+        { status: 400 }
+      );
+    }
+
+    if (!defaultTimezone) {
+      return NextResponse.json(
+        { error: "Selecciona una zona horaria válida" },
+        { status: 400 }
+      );
+    }
+
+    await assertOrganizationAdminAccess(context.user.id, organizationId);
+
+    const organization = await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        defaultTimezone,
+      },
+      select: {
+        id: true,
+        name: true,
+        defaultTimezone: true,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      organization,
+      message: "Zona horaria de la organización actualizada correctamente.",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Error actualizando la organización",
       },
       { status: 400 }
     );

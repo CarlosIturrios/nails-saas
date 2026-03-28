@@ -54,6 +54,15 @@ export default async function OrganizationAdminLayout({
       moduleLabel={presentation.primaryModuleLabel}
       userName={`${context.user.firstName} ${context.user.lastName}`.trim()}
       access={access}
+      resolvedTimezone={
+        context.currentTimezone?.timezone ??
+        context.currentOrganization?.defaultTimezone ??
+        "UTC"
+      }
+      timezoneSource={context.currentTimezone?.source ?? "organization"}
+      userTimezone={context.user.timezone}
+      detectedTimezone={context.currentTimezone?.detectedTimezone ?? null}
+      organizationTimezone={context.currentOrganization?.defaultTimezone ?? "UTC"}
       managementLinks={[
         { href: "/organization-admin", label: "Organización" },
         { href: "/organization-admin/captura", label: "Configurar captura" },

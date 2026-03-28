@@ -15,6 +15,8 @@ interface V2DashboardPageProps {
 
 export default async function V2DashboardPage({ searchParams }: V2DashboardPageProps) {
   const context = await requireCurrentOrganization();
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
   const query = await searchParams;
   const access = getOperationalFrontendAccess(
     context.user.role,
@@ -26,10 +28,11 @@ export default async function V2DashboardPage({ searchParams }: V2DashboardPageP
     redirect(V2_ROUTES.more);
   }
 
-  const selectedDate = normalizeCalendarDateParam(query.date);
+  const selectedDate = normalizeCalendarDateParam(query.date, timeZone);
   const [dashboard, quoteConfig] = await Promise.all([
     getResponsibleOperationalDashboard(context.currentOrganizationId, {
-      date: parseCalendarDateAtMidday(selectedDate),
+      date: parseCalendarDateAtMidday(selectedDate, timeZone),
+      timeZone,
       limit: 200,
     }),
     getOrganizationQuoteConfigView(context.currentOrganizationId),
@@ -45,6 +48,7 @@ export default async function V2DashboardPage({ searchParams }: V2DashboardPageP
 
       <ResponsibleDashboardBoard
         locale="es-MX"
+        timeZone={timeZone}
         currency={quoteConfig.branding.currency}
         currentUserId={context.user.id}
         orderHrefPrefix={V2_ROUTES.orders}

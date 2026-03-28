@@ -15,9 +15,11 @@ import {
   StatusBadge,
 } from "@/src/components/ui/OperationsUI";
 import Toast from "@/src/components/ui/Toast";
+import { formatDate, getUtcTimestamp } from "@/src/lib/dates";
 
 interface PendingOperationsBoardProps {
   locale: string;
+  timeZone: string;
   currency: string;
   rangePreset: "day" | "week" | "month" | "custom" | "all";
   anchorDate: string;
@@ -161,15 +163,17 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: string | null, locale: string) {
+function formatDateTime(value: string | null, locale: string, timeZone: string) {
   if (!value) {
     return "Atención sin horario";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  });
 }
 
 function getOrderPriority(status: ServiceOrderStatus) {
@@ -277,6 +281,7 @@ function buildOrderNewSaleHref(
 
 export function PendingOperationsBoard({
   locale,
+  timeZone,
   currency,
   rangePreset,
   anchorDate,
@@ -341,17 +346,21 @@ export function PendingOperationsBoard({
       return haystack.includes(normalizedSearch);
     });
   }, [normalizedSearch, quoteStatusFilter, quotes]);
-  const sortedOrders = useMemo(() => [...orders].sort((a, b) => {
-    const priorityDiff = getOrderPriority(a.status) - getOrderPriority(b.status);
+  const sortedOrders = useMemo(
+    () =>
+      [...orders].sort((a, b) => {
+        const priorityDiff = getOrderPriority(a.status) - getOrderPriority(b.status);
 
-    if (priorityDiff !== 0) {
-      return priorityDiff;
-    }
+        if (priorityDiff !== 0) {
+          return priorityDiff;
+        }
 
-    const aTime = a.scheduledFor ? new Date(a.scheduledFor).getTime() : 0;
-    const bTime = b.scheduledFor ? new Date(b.scheduledFor).getTime() : 0;
-    return aTime - bTime;
-  }), [orders]);
+        const aTime = getUtcTimestamp(a.scheduledFor);
+        const bTime = getUtcTimestamp(b.scheduledFor);
+        return aTime - bTime;
+      }),
+    [orders]
+  );
   const filteredOrders = useMemo(() => {
     return sortedOrders.filter((order) => {
       const matchesStatus =
@@ -773,10 +782,10 @@ export function PendingOperationsBoard({
                         </StatusBadge>
                       </div>
                       <p className="admin-muted mt-2 text-sm leading-6">
-                        Creada: {formatDateTime(quote.createdAt, locale)}
+                        Creada: {formatDateTime(quote.createdAt, locale, timeZone)}
                       </p>
                       <p className="admin-muted text-sm leading-6">
-                        {formatDateTime(quote.scheduledFor, locale)}
+                        {formatDateTime(quote.scheduledFor, locale, timeZone)}
                       </p>
                       {quote.customerPhone ? (
                         <p className="admin-muted text-sm leading-6">
@@ -919,10 +928,10 @@ export function PendingOperationsBoard({
                           </StatusBadge>
                         </div>
                         <p className="admin-muted mt-2 text-sm leading-6">
-                          Creada: {formatDateTime(order.createdAt, locale)}
+                          Creada: {formatDateTime(order.createdAt, locale, timeZone)}
                         </p>
                         <p className="admin-muted text-sm leading-6">
-                          {formatDateTime(order.scheduledFor, locale)}
+                          {formatDateTime(order.scheduledFor, locale, timeZone)}
                         </p>
                         {order.assignedToName ? (
                           <p className="admin-muted text-sm leading-6">

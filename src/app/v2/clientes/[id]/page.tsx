@@ -14,6 +14,7 @@ import {
   getV2OrderHref,
   getV2QuoteHref,
 } from "@/src/features/v2/routing";
+import { formatDate } from "@/src/lib/dates";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
 import { getClientCommercialHistory } from "@/src/lib/quotes";
 
@@ -47,19 +48,23 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: Date | null, locale: string) {
+function formatDateTime(value: Date | null, locale: string, timeZone: string) {
   if (!value) {
     return "Sin actividad reciente";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(value);
+  });
 }
 
 export default async function V2ClientHistoryPage({ params }: V2ClientHistoryPageProps) {
   const [{ id }, context] = await Promise.all([params, requireCurrentOrganization()]);
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
 
   let client;
   const quoteConfig = await getOrganizationQuoteConfigView(context.currentOrganizationId);
@@ -96,7 +101,10 @@ export default async function V2ClientHistoryPage({ params }: V2ClientHistoryPag
       <section className="grid gap-4 md:grid-cols-3">
         <StatCard label="Total cotizado" value={formatMoney(client.totalQuoted, currency, "es-MX")} />
         <StatCard label="Total pagado" value={formatMoney(client.totalPaid, currency, "es-MX")} />
-        <StatCard label="Ultima actividad" value={formatDateTime(client.lastActivityAt, "es-MX")} />
+        <StatCard
+          label="Ultima actividad"
+          value={formatDateTime(client.lastActivityAt, "es-MX", timeZone)}
+        />
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -156,7 +164,11 @@ export default async function V2ClientHistoryPage({ params }: V2ClientHistoryPag
                     </StatusBadge>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {formatDateTime(quote.convertedAt ?? quote.acceptedAt ?? quote.createdAt, "es-MX")}
+                    {formatDateTime(
+                      quote.convertedAt ?? quote.acceptedAt ?? quote.createdAt,
+                      "es-MX",
+                      timeZone
+                    )}
                   </p>
                 </div>
                 <p className="font-poppins text-2xl font-semibold text-slate-950">
@@ -219,7 +231,7 @@ export default async function V2ClientHistoryPage({ params }: V2ClientHistoryPag
                   </StatusBadge>
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {formatDateTime(order.paidAt ?? order.createdAt, "es-MX")}
+                  {formatDateTime(order.paidAt ?? order.createdAt, "es-MX", timeZone)}
                 </p>
               </div>
               <p className="font-poppins text-2xl font-semibold text-slate-950">
