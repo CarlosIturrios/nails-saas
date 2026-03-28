@@ -24,8 +24,10 @@ import {
 import { useSyncExternalStore, type ReactNode } from "react";
 
 import LogoutButton from "@/src/components/ui/LogoutButton";
+import { TimezoneRuntime } from "@/src/components/timezone/TimezoneRuntime";
 import type { OperationalFrontendAccess } from "@/src/lib/authorization";
 import { V2_ROUTES } from "@/src/features/v2/routing";
+import type { TimezoneSource } from "@/src/lib/dates";
 
 interface V2ShellProps {
   children: ReactNode;
@@ -34,6 +36,11 @@ interface V2ShellProps {
   moduleLabel: string;
   userName: string;
   access: OperationalFrontendAccess;
+  resolvedTimezone: string;
+  timezoneSource: TimezoneSource;
+  userTimezone: string | null;
+  detectedTimezone: string | null;
+  organizationTimezone: string;
   managementLinks?: Array<{
     href: string;
     label: string;
@@ -113,6 +120,11 @@ export function V2Shell({
   moduleLabel,
   userName,
   access,
+  resolvedTimezone,
+  timezoneSource,
+  userTimezone,
+  detectedTimezone,
+  organizationTimezone,
   managementLinks = [],
   canSwitchOrganization = false,
 }: V2ShellProps) {
@@ -504,7 +516,16 @@ export function V2Shell({
           </header>
 
           <main className="w-full flex-1 px-4 py-5 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:px-8 lg:pb-8 xl:px-10 2xl:px-12">
-            {children}
+            <div className="space-y-4">
+              <TimezoneRuntime
+                userTimezone={userTimezone}
+                detectedTimezone={detectedTimezone}
+                organizationTimezone={organizationTimezone}
+                resolvedTimezone={resolvedTimezone}
+                source={timezoneSource}
+              />
+              <div>{children}</div>
+            </div>
           </main>
 
           <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e8dece] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">

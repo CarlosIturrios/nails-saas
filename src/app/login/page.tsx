@@ -19,6 +19,14 @@ function getMessageClassName(type: MessageType) {
   return "border-[#ddd1bf] bg-[#fffaf2] text-slate-700";
 }
 
+function getDetectedTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -98,7 +106,11 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/verify-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail, code }),
+        body: JSON.stringify({
+          email: normalizedEmail,
+          code,
+          detectedTimezone: getDetectedTimezone(),
+        }),
       });
       const payload = await response.json();
 

@@ -496,6 +496,18 @@ function sanitizeConfigForSave(config: OrganizationQuoteConfigInput) {
   };
 }
 
+function hasPendingDraftRows(config: OrganizationQuoteConfigInput) {
+  const hasDraftCategory = config.categories.some(
+    (category) => category.name.trim().length === 0
+  );
+  const hasDraftOption = config.categories.some((category) =>
+    category.options.some((option) => option.name.trim().length === 0)
+  );
+  const hasDraftExtra = config.extras.some((extra) => extra.name.trim().length === 0);
+
+  return hasDraftCategory || hasDraftOption || hasDraftExtra;
+}
+
 function findBusinessOption(value?: string | null) {
   const normalized = normalizeBusinessType(value);
 
@@ -651,6 +663,7 @@ export function QuoteConfigWizardV2({
     () => config.extras.filter((extra) => extra.name.trim().length > 0).length,
     [config.extras]
   );
+  const hasIncompleteDraftRows = useMemo(() => hasPendingDraftRows(config), [config]);
   const hasIdentityDetails = Boolean(
     config.branding.logoUrl.trim() ||
       config.ui.texts.businessPhone?.trim() ||
@@ -1011,7 +1024,7 @@ export function QuoteConfigWizardV2({
   }, [activeSectionId, config, router]);
 
   useEffect(() => {
-    if (state.saveStatus !== "dirty") {
+    if (state.saveStatus !== "dirty" || hasIncompleteDraftRows) {
       return;
     }
 
@@ -1028,7 +1041,7 @@ export function QuoteConfigWizardV2({
         clearTimeout(autosaveTimerRef.current);
       }
     };
-  }, [config, saveConfig, state.saveStatus]);
+  }, [config, hasIncompleteDraftRows, saveConfig, state.saveStatus]);
 
   async function uploadLogo(file: File) {
     setUploadingLogo(true);
@@ -1367,17 +1380,13 @@ export function QuoteConfigWizardV2({
         </section>
 
         <section className="rounded-[28px] border border-[#eadfcb] bg-white p-5 sm:p-6">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
             <div>
               <h3 className="text-lg font-semibold text-slate-950">Extras rápidos</h3>
               <p className="mt-1 text-sm leading-6 text-slate-600">
                 Úsalos para toppings, materiales, urgencias o cargos que se agregan aparte.
               </p>
             </div>
-            <button type="button" onClick={addExtra} className={secondaryButtonClass}>
-              <Plus size={18} className="mr-2" />
-              Agregar extra
-            </button>
           </div>
 
           <div className="mt-5 space-y-3">
@@ -1487,6 +1496,13 @@ export function QuoteConfigWizardV2({
                 </button>
               </div>
             ))}
+
+            <div className="pt-1">
+              <button type="button" onClick={addExtra} className={secondaryButtonClass}>
+                <Plus size={18} className="mr-2" />
+                Agregar extra
+              </button>
+            </div>
           </div>
         </section>
       </div>

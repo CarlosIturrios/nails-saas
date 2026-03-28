@@ -12,7 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { AccountBreakdownCard } from "@/src/components/ui/AccountBreakdownCard";
 import { OperationsFiltersBar } from "@/src/components/ui/OperationsFiltersBar";
@@ -23,9 +23,15 @@ import {
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import { downloadQuoteImage } from "@/src/components/ui/downloadQuoteImage";
 import Toast from "@/src/components/ui/Toast";
+import {
+  formatDate,
+  serializeDateTimeForApi,
+  toDatetimeLocalValue,
+} from "@/src/lib/dates";
 
 interface QuotesBoardProps {
   locale: string;
+  timeZone: string;
   rangePreset: "day" | "week" | "month" | "custom" | "all";
   anchorDate: string;
   rangeFrom: string | null;
@@ -94,26 +100,25 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateLabel(value: string | null, locale: string) {
+function formatDateLabel(value: string | null, locale: string, timeZone: string) {
   if (!value) {
     return "Sin fecha programada";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  });
 }
 
-function toDatetimeLocal(value: string | null) {
+function toDatetimeLocal(value: string | null, timeZone: string) {
   if (!value) {
     return "";
   }
 
-  const date = new Date(value);
-  const offset = date.getTimezoneOffset();
-  const normalized = new Date(date.getTime() - offset * 60_000);
-  return normalized.toISOString().slice(0, 16);
+  return toDatetimeLocalValue(value, timeZone);
 }
 
 function getStatusTone(status: QuoteStatus) {
@@ -218,6 +223,7 @@ function QuoteMetaRow({
 
 export function QuotesBoard({
   locale,
+  timeZone,
   rangePreset,
   anchorDate,
   rangeFrom,
@@ -241,12 +247,22 @@ export function QuotesBoard({
   const [expandedConvertQuoteId, setExpandedConvertQuoteId] = useState<string | null>(null);
   const [assignmentValues, setAssignmentValues] = useState<Record<string, string>>({});
   const [scheduleValues, setScheduleValues] = useState<Record<string, string>>(
-    () => Object.fromEntries(quotes.map((quote) => [quote.id, toDatetimeLocal(quote.scheduledFor)]))
+    () =>
+      Object.fromEntries(
+        quotes.map((quote) => [quote.id, toDatetimeLocal(quote.scheduledFor, timeZone)])
+      )
   );
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
+  useEffect(() => {
+    setScheduleValues(
+      Object.fromEntries(
+        quotes.map((quote) => [quote.id, toDatetimeLocal(quote.scheduledFor, timeZone)])
+      )
+    );
+  }, [quotes, timeZone]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const filteredQuotes = useMemo(() => {
     return quotes.filter((quote) => {
@@ -340,7 +356,7 @@ export function QuotesBoard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           assignedToUserId: assignmentValues[quoteId] || null,
-          scheduledFor: scheduleValues[quoteId] || null,
+          scheduledFor: serializeDateTimeForApi(scheduleValues[quoteId] || null, timeZone),
         }),
       });
       const payload = await response.json();
@@ -525,10 +541,10 @@ export function QuotesBoard({
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <QuoteMetaRow icon={<FileText size={16} />} label="Creada">
-                    {formatDateLabel(quote.createdAt, locale)}
+                    {formatDateLabel(quote.createdAt, locale, timeZone)}
                   </QuoteMetaRow>
                   <QuoteMetaRow icon={<CalendarClock size={16} />} label="Programada">
-                    {formatDateLabel(quote.scheduledFor, locale)}
+                    {formatDateLabel(quote.scheduledFor, locale, timeZone)}
                   </QuoteMetaRow>
                   {quote.customerPhone ? (
                     <QuoteMetaRow icon={<Phone size={16} />} label="Contacto">

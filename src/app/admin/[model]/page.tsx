@@ -45,6 +45,11 @@ export default async function AdminModelPage({
       config={config}
       initialData={initialData}
       initialFormOptions={initialFormOptions}
+      timeZone={
+        currentUser.currentTimezone?.timezone ??
+        currentUser.currentOrganization?.defaultTimezone ??
+        "UTC"
+      }
     />
   );
 }

@@ -5,9 +5,11 @@ import {
   StatCard,
   StatusBadge,
 } from "@/src/components/ui/OperationsUI";
+import { formatDate } from "@/src/lib/dates";
 
 interface ResponsibleDashboardBoardProps {
   locale: string;
+  timeZone: string;
   currency: string;
   currentUserId: string;
   orderHrefPrefix?: string;
@@ -60,19 +62,22 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: Date | null, locale: string) {
+function formatDateTime(value: Date | null, locale: string, timeZone: string) {
   if (!value) {
     return "Atención inmediata";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(value);
+  });
 }
 
 export function ResponsibleDashboardBoard({
   locale,
+  timeZone,
   currency,
   currentUserId,
   orderHrefPrefix = "/ordenes",
@@ -190,7 +195,7 @@ export function ResponsibleDashboardBoard({
                       </p>
                     ) : null}
                     <p className="admin-muted text-sm leading-6">
-                      {formatDateTime(order.scheduledFor, locale)}
+                      {formatDateTime(order.scheduledFor, locale, timeZone)}
                     </p>
                   </div>
                   <span className="text-sm font-semibold text-slate-950">

@@ -11,6 +11,7 @@ import {
 } from "@/src/features/quote-calculator-v2/lib/config";
 import { normalizeQuoteConfigPreset } from "@/src/features/quote-calculator-v2/lib/presets";
 import { canCreateOrganizations } from "@/src/lib/authorization";
+import { sanitizeTimezone, UTC_TIMEZONE } from "@/src/lib/dates";
 
 export async function POST(request: Request) {
   try {
@@ -33,10 +34,14 @@ export async function POST(request: Request) {
     }
 
     const quoteConfigPreset = normalizeQuoteConfigPreset(body.quoteConfigPreset);
+    const defaultTimezone =
+      sanitizeTimezone(body.defaultTimezone, context.currentTimezone?.timezone ?? UTC_TIMEZONE) ??
+      UTC_TIMEZONE;
 
     const organization = await prisma.organization.create({
       data: {
         name,
+        defaultTimezone,
         memberships: {
           create: {
             userId: context.user.id,

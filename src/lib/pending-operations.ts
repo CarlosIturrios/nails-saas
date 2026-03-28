@@ -6,26 +6,36 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/src/lib/db";
+import { endOfDay, getCalendarDateInTimezone, startOfDay } from "@/src/lib/dates";
 
-function getDayRange(baseDate: Date) {
-  const start = new Date(baseDate);
-  start.setHours(0, 0, 0, 0);
+function getDayRange(baseDate: Date, timeZone?: string) {
+  if (!timeZone) {
+    const start = new Date(baseDate);
+    start.setHours(0, 0, 0, 0);
 
-  const end = new Date(baseDate);
-  end.setHours(23, 59, 59, 999);
+    const end = new Date(baseDate);
+    end.setHours(23, 59, 59, 999);
 
-  return { start, end };
+    return { start, end };
+  }
+
+  const calendarDate = getCalendarDateInTimezone(baseDate, timeZone);
+  return {
+    start: startOfDay(calendarDate, timeZone),
+    end: endOfDay(calendarDate, timeZone),
+  };
 }
 
 export async function getPendingOperationsSnapshot(
   organizationId: string,
   options: {
     date?: Date;
+    timeZone?: string;
     limit?: number;
   } = {}
 ) {
   const baseDate = options.date ?? new Date();
-  const { start, end } = getDayRange(baseDate);
+  const { start, end } = getDayRange(baseDate, options.timeZone);
   const take = options.limit ?? 100;
 
   const [acceptedQuotes, activeOrders] = await Promise.all([

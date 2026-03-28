@@ -1,50 +1,57 @@
-import { normalizeCalendarDateParam, parseCalendarDateAtMidday } from "@/src/lib/dates";
+import {
+  addDaysToCalendarDate,
+  endOfDay,
+  getMonthEnd,
+  getMonthStart,
+  getWeekdayFromCalendarDate,
+  normalizeCalendarDateParam,
+  startOfDay,
+} from "@/src/lib/dates";
 
 export type OperationsRangePreset = "day" | "week" | "month" | "custom" | "all";
 
 function normalizeDate(value?: string | null) {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (!value) {
     return null;
   }
 
-  return value;
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
 }
 
-function getDayBounds(dateValue: string) {
-  const start = parseCalendarDateAtMidday(dateValue);
-  start.setHours(0, 0, 0, 0);
-
-  const end = parseCalendarDateAtMidday(dateValue);
-  end.setHours(23, 59, 59, 999);
-
-  return { start, end };
+function getDayBounds(dateValue: string, timeZone: string) {
+  return {
+    startDate: dateValue,
+    endDate: dateValue,
+    start: startOfDay(dateValue, timeZone),
+    end: endOfDay(dateValue, timeZone),
+  };
 }
 
-function getWeekBounds(dateValue: string) {
-  const base = parseCalendarDateAtMidday(dateValue);
-  const day = base.getDay();
+function getWeekBounds(dateValue: string, timeZone: string) {
+  const day = getWeekdayFromCalendarDate(dateValue);
   const diffToMonday = day === 0 ? -6 : 1 - day;
-  const start = new Date(base);
-  start.setDate(base.getDate() + diffToMonday);
-  start.setHours(0, 0, 0, 0);
+  const startDate = addDaysToCalendarDate(dateValue, diffToMonday);
+  const endDate = addDaysToCalendarDate(startDate, 6);
 
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-
-  return { start, end };
+  return {
+    startDate,
+    endDate,
+    start: startOfDay(startDate, timeZone),
+    end: endOfDay(endDate, timeZone),
+  };
 }
 
-function getMonthBounds(dateValue: string) {
-  const base = parseCalendarDateAtMidday(dateValue);
-  const start = new Date(base.getFullYear(), base.getMonth(), 1, 0, 0, 0, 0);
-  const end = new Date(base.getFullYear(), base.getMonth() + 1, 0, 23, 59, 59, 999);
-  return { start, end };
-}
+function getMonthBounds(dateValue: string, timeZone: string) {
+  const startDate = getMonthStart(dateValue);
+  const endDate = getMonthEnd(dateValue);
 
-function toDateInputValue(value: Date) {
-  const offset = value.getTimezoneOffset();
-  return new Date(value.getTime() - offset * 60_000).toISOString().slice(0, 10);
+  return {
+    startDate,
+    endDate,
+    start: startOfDay(startDate, timeZone),
+    end: endOfDay(endDate, timeZone),
+  };
 }
 
 export function normalizeRangePreset(value?: string | null): OperationsRangePreset {
@@ -61,14 +68,17 @@ export function normalizeRangePreset(value?: string | null): OperationsRangePres
   return "day";
 }
 
-export function resolveOperationsDateRange(params: {
-  preset?: string | null;
-  date?: string | null;
-  from?: string | null;
-  to?: string | null;
-}) {
+export function resolveOperationsDateRange(
+  params: {
+    preset?: string | null;
+    date?: string | null;
+    from?: string | null;
+    to?: string | null;
+  },
+  timeZone: string
+) {
   const preset = normalizeRangePreset(params.preset);
-  const anchorDate = normalizeCalendarDateParam(params.date ?? undefined);
+  const anchorDate = normalizeCalendarDateParam(params.date ?? undefined, timeZone);
   const customFrom = normalizeDate(params.from);
   const customTo = normalizeDate(params.to);
 
@@ -88,33 +98,29 @@ export function resolveOperationsDateRange(params: {
     const safeTo = customTo ?? safeFrom;
     const startDate = safeFrom <= safeTo ? safeFrom : safeTo;
     const endDate = safeFrom <= safeTo ? safeTo : safeFrom;
-    const start = parseCalendarDateAtMidday(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = parseCalendarDateAtMidday(endDate);
-    end.setHours(23, 59, 59, 999);
 
     return {
       preset,
       anchorDate,
       from: startDate,
       to: endDate,
-      start,
-      end,
+      start: startOfDay(startDate, timeZone),
+      end: endOfDay(endDate, timeZone),
     };
   }
 
   const bounds =
     preset === "week"
-      ? getWeekBounds(anchorDate)
+      ? getWeekBounds(anchorDate, timeZone)
       : preset === "month"
-        ? getMonthBounds(anchorDate)
-        : getDayBounds(anchorDate);
+        ? getMonthBounds(anchorDate, timeZone)
+        : getDayBounds(anchorDate, timeZone);
 
   return {
     preset,
     anchorDate,
-    from: toDateInputValue(bounds.start),
-    to: toDateInputValue(bounds.end),
+    from: bounds.startDate,
+    to: bounds.endDate,
     start: bounds.start,
     end: bounds.end,
   };

@@ -14,6 +14,7 @@ import {
   getV2ClientHref,
   getV2OrderHref,
 } from "@/src/features/v2/routing";
+import { formatDate } from "@/src/lib/dates";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
 import { getQuoteById } from "@/src/lib/quotes";
 
@@ -38,19 +39,23 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: Date | null, locale: string) {
+function formatDateTime(value: Date | null, locale: string, timeZone: string) {
   if (!value) {
     return "Sin fecha";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(value);
+  });
 }
 
 export default async function V2QuoteDetailPage({ params }: V2QuoteDetailPageProps) {
   const [{ id }, context] = await Promise.all([params, requireCurrentOrganization()]);
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
 
   let quote;
   const quoteConfig = await getOrganizationQuoteConfigView(context.currentOrganizationId);
@@ -111,8 +116,12 @@ export default async function V2QuoteDetailPage({ params }: V2QuoteDetailPagePro
       <section className="rounded-[28px] border border-[#e8dece] bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <p className="text-sm leading-6 text-slate-600">Creada: {formatDateTime(quote.createdAt, "es-MX")}</p>
-            <p className="text-sm leading-6 text-slate-600">Programada: {formatDateTime(quote.scheduledFor, "es-MX")}</p>
+            <p className="text-sm leading-6 text-slate-600">
+              Creada: {formatDateTime(quote.createdAt, "es-MX", timeZone)}
+            </p>
+            <p className="text-sm leading-6 text-slate-600">
+              Programada: {formatDateTime(quote.scheduledFor, "es-MX", timeZone)}
+            </p>
             {quote.notes ? <p className="text-sm leading-6 text-slate-600">Nota: {quote.notes}</p> : null}
           </div>
           <div className="flex flex-col gap-3">

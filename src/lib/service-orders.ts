@@ -9,6 +9,13 @@ import {
 
 import { prisma } from "@/src/lib/db";
 import { resolveClientForCapture } from "@/src/lib/capture-clients";
+import {
+  endOfDay,
+  getCalendarDateInTimezone,
+  getUtcTimestamp,
+  parseNullableToUTC,
+  startOfDay,
+} from "@/src/lib/dates";
 
 export interface CreateServiceOrderItemInput {
   itemType: ServiceOrderItemType;
@@ -32,6 +39,7 @@ export interface CreateServiceOrderFromQuoteInput {
   customerPhone?: string | null;
   notes?: string | null;
   scheduledFor?: string | null;
+  timeZone?: string | null;
   currency: string;
   source?: string;
   snapshot?: Record<string, unknown> | null;
@@ -172,8 +180,8 @@ export async function createServiceOrderFromQuote(
       customerPhone: input.customerPhone?.trim() || null,
       notes: input.notes?.trim() || null,
       scheduledFor:
-        input.flowType === ServiceOrderFlowType.SCHEDULED && input.scheduledFor
-          ? new Date(input.scheduledFor)
+        input.flowType === ServiceOrderFlowType.SCHEDULED
+          ? parseNullableToUTC(input.scheduledFor, input.timeZone ?? undefined)
           : null,
       subtotal,
       total,
@@ -200,6 +208,7 @@ export async function listServiceOrdersForOrganization(
     date?: Date;
     from?: Date | null;
     to?: Date | null;
+    timeZone?: string;
     statuses?: ServiceOrderStatus[];
     limit?: number;
   } = {}
@@ -218,11 +227,17 @@ export async function listServiceOrdersForOrganization(
   let end = options.to ?? null;
 
   if ((!start || !end) && options.date) {
-    start = new Date(options.date);
-    start.setHours(0, 0, 0, 0);
+    if (options.timeZone) {
+      const calendarDate = getCalendarDateInTimezone(options.date, options.timeZone);
+      start = startOfDay(calendarDate, options.timeZone);
+      end = endOfDay(calendarDate, options.timeZone);
+    } else {
+      start = new Date(options.date);
+      start.setHours(0, 0, 0, 0);
 
-    end = new Date(options.date);
-    end.setHours(23, 59, 59, 999);
+      end = new Date(options.date);
+      end.setHours(23, 59, 59, 999);
+    }
   }
 
   if (start && end) {
@@ -343,6 +358,9 @@ export async function getServiceOrderCashSummary(
   organizationId: string,
   options: {
     date?: Date;
+    from?: Date | null;
+    to?: Date | null;
+    timeZone?: string;
     limit?: number;
   } = {}
 ) {
@@ -410,7 +428,8 @@ export async function updateServiceOrderStatus(
 export async function updateServiceOrderSchedule(
   organizationId: string,
   serviceOrderId: string,
-  scheduledFor: string | null
+  scheduledFor: string | null,
+  timeZone?: string | null
 ) {
   const order = await prisma.serviceOrder.findFirst({
     where: {
@@ -426,7 +445,10 @@ export async function updateServiceOrderSchedule(
     throw new Error("La orden no existe o no pertenece a tu organización");
   }
 
-  const nextScheduledFor = scheduledFor?.trim() ? new Date(scheduledFor) : null;
+  const nextScheduledFor = parseNullableToUTC(
+    scheduledFor?.trim() || null,
+    timeZone ?? undefined
+  );
 
   if (nextScheduledFor && Number.isNaN(nextScheduledFor.getTime())) {
     throw new Error("La fecha programada no es válida");
@@ -580,8 +602,8 @@ export async function listClientsWithOrderHistory(
     })
     .filter((client) => client.orderCount > 0)
     .sort((a, b) => {
-      const aTime = a.lastOrderAt ? new Date(a.lastOrderAt).getTime() : 0;
-      const bTime = b.lastOrderAt ? new Date(b.lastOrderAt).getTime() : 0;
+      const aTime = getUtcTimestamp(a.lastOrderAt);
+      const bTime = getUtcTimestamp(b.lastOrderAt);
       return bTime - aTime;
     });
 }
@@ -638,6 +660,9 @@ export async function getResponsibleOperationalDashboard(
   organizationId: string,
   options: {
     date?: Date;
+    from?: Date | null;
+    to?: Date | null;
+    timeZone?: string;
     limit?: number;
   } = {}
 ) {

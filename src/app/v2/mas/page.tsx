@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { TimezonePreferencesCard } from "@/src/components/timezone/TimezonePreferencesCard";
 import LogoutButton from "@/src/components/ui/LogoutButton";
 import { V2QuickLink, V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import { getDefaultAppRoute, V2_ROUTES } from "@/src/features/v2/routing";
@@ -7,10 +8,19 @@ import {
   canAccessPlatformAdmin,
   getOperationalFrontendAccess,
 } from "@/src/lib/authorization";
+import { getSupportedTimezones, UTC_TIMEZONE } from "@/src/lib/dates";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
 
 export default async function V2MorePage() {
   const context = await requireCurrentOrganization();
+  const timezones = getSupportedTimezones();
+  const currentTimezone = context.currentTimezone ?? {
+    timezone: context.currentOrganization.defaultTimezone,
+    source: "organization" as const,
+    userTimezone: context.user.timezone,
+    detectedTimezone: null,
+    organizationTimezone: context.currentOrganization.defaultTimezone ?? UTC_TIMEZONE,
+  };
   const access = getOperationalFrontendAccess(
     context.user.role,
     context.currentOrganizationRole,
@@ -202,6 +212,16 @@ export default async function V2MorePage() {
           </div>
         </section>
       ) : null}
+
+      <TimezonePreferencesCard
+        currentTimezone={currentTimezone.timezone}
+        currentSource={currentTimezone.source}
+        userTimezone={context.user.timezone}
+        detectedTimezone={currentTimezone.detectedTimezone}
+        organizationTimezone={currentTimezone.organizationTimezone}
+        organizationName={context.currentOrganization.name}
+        timezoneOptions={timezones}
+      />
 
       <section className="rounded-[28px] border border-[#e8dece] bg-white p-5 sm:p-6">
         <p className="text-sm font-semibold text-slate-950">Sesión</p>

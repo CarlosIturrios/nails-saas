@@ -6,6 +6,7 @@ import {
   canAccessPlatformAdmin,
   canCreateOrganizations,
 } from "@/src/lib/authorization";
+import { getSupportedTimezones } from "@/src/lib/dates";
 import { prisma } from "@/src/lib/db";
 import { requireOrganizationContext } from "@/src/lib/organizations/context";
 
@@ -61,6 +62,7 @@ export default async function OrganizationAdminPage() {
     id: membership.organization.id,
     name: membership.organization.name,
   }));
+  const currentTimezone = context.currentTimezone ?? null;
 
   return (
     <OrganizationAdminClient
@@ -69,6 +71,11 @@ export default async function OrganizationAdminPage() {
       canManageOtherAdmins={canAccessPlatformAdmin(context.user.role)}
       currentOrganizationId={context.currentOrganizationId}
       currentOrganizationName={context.currentOrganization?.name ?? null}
+      currentOrganizationDefaultTimezone={context.currentOrganization?.defaultTimezone ?? "UTC"}
+      currentUserTimezone={context.user.timezone}
+      detectedTimezone={currentTimezone?.detectedTimezone ?? null}
+      resolvedTimezone={currentTimezone?.timezone ?? context.currentOrganization?.defaultTimezone ?? "UTC"}
+      timezoneOptions={getSupportedTimezones()}
       manageableOrganizations={manageableOrganizations}
       members={members.map((member) => ({
         ...member,

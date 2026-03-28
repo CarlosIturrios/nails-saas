@@ -1,6 +1,6 @@
 "use client";
 
-import { ReceiptText } from "lucide-react";
+import { Download, ReceiptText } from "lucide-react";
 
 import {
   formatMoney,
@@ -13,10 +13,12 @@ interface CaptureMobileStickyBarProps {
   currency: string;
   language: string;
   actionLabel: string;
+  downloadLabel: string;
   itemCount?: number;
+  downloading?: boolean;
   theme: QuoteCalculatorTheme;
   onAction: () => void;
-  onShowTicket?: () => void;
+  onDownloadSummary?: () => void;
 }
 
 export function CaptureMobileStickyBar({
@@ -25,10 +27,12 @@ export function CaptureMobileStickyBar({
   currency,
   language,
   actionLabel,
+  downloadLabel,
   itemCount = 0,
+  downloading = false,
   theme,
   onAction,
-  onShowTicket,
+  onDownloadSummary,
 }: CaptureMobileStickyBarProps) {
   if (total <= 0) {
     return null;
@@ -75,17 +79,21 @@ export function CaptureMobileStickyBar({
 
           {isPosLayout ? (
             <div className="grid gap-2 sm:grid-cols-[minmax(0,auto)_1fr]">
-              {onShowTicket ? (
+              {onDownloadSummary ? (
                 <button
                   type="button"
-                  onClick={onShowTicket}
+                  onClick={onDownloadSummary}
+                  disabled={downloading}
                   className="inline-flex min-h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold text-slate-700"
                   style={{
                     borderColor: theme.panelBorder,
                     background: theme.ticketMutedBackground,
                   }}
                 >
-                  Ver ticket
+                  <span className="inline-flex items-center gap-2">
+                    <Download size={14} />
+                    {downloading ? "Generando..." : downloadLabel}
+                  </span>
                 </button>
               ) : null}
               <button

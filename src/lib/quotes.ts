@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/src/lib/db";
 import { resolveClientForCapture } from "@/src/lib/capture-clients";
 import { createServiceOrderFromQuote } from "@/src/lib/service-orders";
+import { getUtcTimestamp, parseNullableToUTC } from "@/src/lib/dates";
 
 export interface CreateQuoteItemInput {
   itemType: QuoteItemType;
@@ -33,6 +34,7 @@ export interface CreatePersistentQuoteInput {
   customerPhone?: string | null;
   notes?: string | null;
   scheduledFor?: string | null;
+  timeZone?: string | null;
   currency: string;
   source?: string;
   snapshot?: Record<string, unknown> | null;
@@ -42,6 +44,7 @@ export interface CreatePersistentQuoteInput {
 interface ConvertQuoteToServiceOrderOptions {
   assignedToUserId?: string | null;
   scheduledFor?: string | null;
+  timeZone?: string | null;
 }
 
 function toInputJson(
@@ -162,8 +165,8 @@ export async function createPersistentQuote(input: CreatePersistentQuoteInput) {
       customerPhone: input.customerPhone?.trim() || null,
       notes: input.notes?.trim() || null,
       scheduledFor:
-        input.flowType === ServiceOrderFlowType.SCHEDULED && input.scheduledFor
-          ? new Date(input.scheduledFor)
+        input.flowType === ServiceOrderFlowType.SCHEDULED
+          ? parseNullableToUTC(input.scheduledFor, input.timeZone ?? undefined)
           : null,
       subtotal,
       total,
@@ -429,6 +432,7 @@ export async function convertQuoteToServiceOrder(
     customerPhone: quote.customerPhone,
     notes: quote.notes,
     scheduledFor: nextScheduledFor || quote.scheduledFor?.toISOString() || null,
+    timeZone: options.timeZone ?? null,
     currency: quote.currency,
     source: quote.source,
     snapshot:
@@ -564,6 +568,7 @@ export async function listClientsWithCommercialHistory(
   organizationId: string,
   options: {
     limit?: number;
+    includeWithoutHistory?: boolean;
   } = {}
 ) {
   const clients = await prisma.client.findMany({
@@ -632,14 +637,41 @@ export async function listClientsWithCommercialHistory(
         totalQuoted: activeQuotes.reduce((sum, quote) => sum + quote.total, 0),
         totalPaid: paidOrders.reduce((sum, order) => sum + order.total, 0),
         lastActivityAt,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
       };
     })
-    .filter((client) => client.quoteCount > 0 || client.orderCount > 0)
+    .filter((client) =>
+      options.includeWithoutHistory
+        ? true
+        : client.quoteCount > 0 || client.orderCount > 0
+    )
     .sort((a, b) => {
-      const aTime = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
-      const bTime = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
+      const aTime = Math.max(
+        getUtcTimestamp(a.lastActivityAt),
+        getUtcTimestamp(a.updatedAt),
+        getUtcTimestamp(a.createdAt)
+      );
+      const bTime = Math.max(
+        getUtcTimestamp(b.lastActivityAt),
+        getUtcTimestamp(b.updatedAt),
+        getUtcTimestamp(b.createdAt)
+      );
       return bTime - aTime;
-    });
+    })
+    .map((client) => ({
+      id: client.id,
+      name: client.name,
+      phone: client.phone,
+      email: client.email,
+      quoteCount: client.quoteCount,
+      activeQuoteCount: client.activeQuoteCount,
+      orderCount: client.orderCount,
+      paidOrderCount: client.paidOrderCount,
+      totalQuoted: client.totalQuoted,
+      totalPaid: client.totalPaid,
+      lastActivityAt: client.lastActivityAt,
+    }));
 }
 
 export async function getClientCommercialHistory(

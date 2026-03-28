@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { CreateClientCard } from "@/src/components/clients/CreateClientCard";
 import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import { V2_ROUTES, buildV2NewSaleHref, getV2ClientHref } from "@/src/features/v2/routing";
-import { getOperationalFrontendAccess } from "@/src/lib/authorization";
+import { canManageOrganization, getOperationalFrontendAccess } from "@/src/lib/authorization";
+import { formatDate } from "@/src/lib/dates";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
 import { listClientsWithCommercialHistory } from "@/src/lib/quotes";
 import { StatCard } from "@/src/components/ui/OperationsUI";
@@ -16,38 +18,50 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: Date | null, locale: string) {
+function formatDateTime(value: Date | null, locale: string, timeZone: string) {
   if (!value) {
     return "Sin actividad reciente";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(value);
+  });
 }
 
 export default async function V2ClientsPage() {
   const context = await requireCurrentOrganization();
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
   const access = getOperationalFrontendAccess(
     context.user.role,
     context.currentOrganizationRole,
     context.currentOrganizationPermissionProfile
+  );
+  const canCreateClients = canManageOrganization(
+    context.user.role,
+    context.currentOrganizationRole
   );
 
   if (!access.canUseClients) {
     redirect(V2_ROUTES.more);
   }
 
-  const clients = await listClientsWithCommercialHistory(context.currentOrganizationId);
+  const clients = await listClientsWithCommercialHistory(context.currentOrganizationId, {
+    includeWithoutHistory: true,
+  });
 
   return (
     <div className="space-y-5">
       <V2PageHero
         kicker="Clientes"
-        title="Clientes con actividad"
-        description="Consulta historial comercial y operativo. Desde aqui puedes volver a vender rapido con contexto ya conocido."
+        title="Clientes del negocio"
+        description="Consulta historial comercial, agrega clientes manualmente y vuelve a vender rápido con el contexto ya conocido."
       />
+
+      {canCreateClients ? <CreateClientCard /> : null}
 
       {clients.length > 0 ? (
         <section className="space-y-4">
@@ -61,8 +75,11 @@ export default async function V2ClientsPage() {
                   {client.phone ? (
                     <p className="mt-2 text-sm leading-6 text-slate-600">Telefono: {client.phone}</p>
                   ) : null}
+                  {client.email ? (
+                    <p className="text-sm leading-6 text-slate-600">Correo: {client.email}</p>
+                  ) : null}
                   <p className="text-sm leading-6 text-slate-600">
-                    Ultima actividad: {formatDateTime(client.lastActivityAt, "es-MX")}
+                    Ultima actividad: {formatDateTime(client.lastActivityAt, "es-MX", timeZone)}
                   </p>
                 </div>
 
@@ -97,9 +114,9 @@ export default async function V2ClientsPage() {
         </section>
       ) : (
         <section className="rounded-[28px] border border-[#e8dece] bg-white p-5 sm:p-6">
-          <p className="text-sm font-medium text-slate-700">Aun no hay clientes con historial.</p>
+          <p className="text-sm font-medium text-slate-700">Aun no hay clientes registrados.</p>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Cuando guardes propuestas u ordenes con nombre o telefono, aqui aparecera su actividad.
+            Cuando agregues un cliente manualmente o guardes propuestas y órdenes, aquí aparecerá su ficha.
           </p>
         </section>
       )}

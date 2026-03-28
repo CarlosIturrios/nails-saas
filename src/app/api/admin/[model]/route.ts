@@ -60,7 +60,8 @@ export async function POST(request: Request, context: RouteContext) {
     const record = await createAdminRecord(
       config,
       body.data || {},
-      currentUser.currentOrganizationId
+      currentUser.currentOrganizationId,
+      currentUser.currentTimezone?.timezone ?? currentUser.currentOrganization?.defaultTimezone
     );
 
     return NextResponse.json(record, { status: 201 });
@@ -93,7 +94,8 @@ export async function PUT(request: Request, context: RouteContext) {
       config,
       String(body.id),
       body.data || {},
-      currentUser.currentOrganizationId
+      currentUser.currentOrganizationId,
+      currentUser.currentTimezone?.timezone ?? currentUser.currentOrganization?.defaultTimezone
     );
 
     return NextResponse.json(record);

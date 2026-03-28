@@ -14,6 +14,7 @@ import {
   getV2ClientHref,
   getV2QuoteHref,
 } from "@/src/features/v2/routing";
+import { formatDate } from "@/src/lib/dates";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
 import { getServiceOrderById } from "@/src/lib/service-orders";
 
@@ -38,15 +39,17 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: Date | null, locale: string) {
+function formatDateTime(value: Date | null, locale: string, timeZone: string) {
   if (!value) {
     return "Sin fecha";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(value);
+  });
 }
 
 function getStatusTone(status: ServiceOrderStatus) {
@@ -59,6 +62,8 @@ function getStatusTone(status: ServiceOrderStatus) {
 
 export default async function V2OrderDetailPage({ params }: V2OrderDetailPageProps) {
   const [{ id }, context] = await Promise.all([params, requireCurrentOrganization()]);
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
 
   let order;
   const quoteConfig = await getOrganizationQuoteConfigView(context.currentOrganizationId);
@@ -115,8 +120,12 @@ export default async function V2OrderDetailPage({ params }: V2OrderDetailPagePro
       <section className="rounded-[28px] border border-[#e8dece] bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <p className="text-sm leading-6 text-slate-600">Creada: {formatDateTime(order.createdAt, "es-MX")}</p>
-            <p className="text-sm leading-6 text-slate-600">Programada: {formatDateTime(order.scheduledFor, "es-MX")}</p>
+            <p className="text-sm leading-6 text-slate-600">
+              Creada: {formatDateTime(order.createdAt, "es-MX", timeZone)}
+            </p>
+            <p className="text-sm leading-6 text-slate-600">
+              Programada: {formatDateTime(order.scheduledFor, "es-MX", timeZone)}
+            </p>
             <p className="text-sm leading-6 text-slate-600">
               Responsable: {order.assignedTo ? `${order.assignedTo.firstName} ${order.assignedTo.lastName}`.trim() : "Sin asignar"}
             </p>

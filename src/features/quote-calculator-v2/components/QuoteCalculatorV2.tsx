@@ -12,7 +12,7 @@ import {
   ServiceOrderItemType,
   ServiceOrderStatus,
 } from "@prisma/client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import Toast from "@/src/components/ui/Toast";
@@ -50,9 +50,11 @@ import {
 import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo";
 import { OrganizationQuoteConfigView } from "@/src/features/quote-calculator-v2/lib/types";
 import type { IndustryPresentation } from "@/src/features/v2/presentation";
+import { formatDate, serializeDateTimeForApi } from "@/src/lib/dates";
 
 interface QuoteCalculatorV2Props {
   config: OrganizationQuoteConfigView;
+  timeZone: string;
   organizationName: string;
   presentation?: IndustryPresentation;
   assignableUsers?: Array<{
@@ -461,6 +463,7 @@ const MODERN_TEMPLATE_THEMES = {
 
 export function QuoteCalculatorV2({
   config,
+  timeZone,
   organizationName,
   presentation,
   assignableUsers = [],
@@ -562,8 +565,9 @@ export function QuoteCalculatorV2({
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
-  const saveSectionRef = useRef<HTMLDivElement>(null);
-  const summarySectionRef = useRef<HTMLDivElement>(null);
+  const intentSectionRef = useRef<HTMLDivElement>(null);
+  const rightRailRef = useRef<HTMLDivElement>(null);
+  const closeSectionRef = useRef<HTMLDivElement>(null);
   const initialClientIdRef = useRef(initialContext?.clientId?.trim() || null);
 
   useEffect(() => {
@@ -906,10 +910,12 @@ export function QuoteCalculatorV2({
       return "Sin actividad reciente";
     }
 
-    return new Intl.DateTimeFormat(config.branding.language, {
+    return formatDate(value, {
+      locale: config.branding.language,
+      timeZone,
       dateStyle: "medium",
       timeStyle: "short",
-    }).format(new Date(value));
+    });
   }
 
   function buildSnapshot() {
@@ -1024,7 +1030,10 @@ export function QuoteCalculatorV2({
           customerName,
           customerPhone,
           notes: orderNotes,
-          scheduledFor: flowType === ServiceOrderFlowType.SCHEDULED ? scheduledFor : null,
+          scheduledFor:
+            flowType === ServiceOrderFlowType.SCHEDULED
+              ? serializeDateTimeForApi(scheduledFor, timeZone)
+              : null,
           currency: config.branding.currency,
           snapshot: buildSnapshot(),
           items: buildQuoteItems(),
@@ -1085,7 +1094,10 @@ export function QuoteCalculatorV2({
           customerPhone,
           notes: orderNotes,
           assignedToUserId: assignedToUserId || null,
-          scheduledFor: flowType === ServiceOrderFlowType.SCHEDULED ? scheduledFor : null,
+          scheduledFor:
+            flowType === ServiceOrderFlowType.SCHEDULED
+              ? serializeDateTimeForApi(scheduledFor, timeZone)
+              : null,
           currency: config.branding.currency,
           snapshot: buildSnapshot(),
           items: buildOrderItems(),
@@ -1257,14 +1269,42 @@ export function QuoteCalculatorV2({
         ? "quote"
         : "appointment";
 
+  function scrollToCaptureSection(target: RefObject<HTMLDivElement | null>) {
+    const targetNode = target.current;
+
+    if (!targetNode) {
+      return;
+    }
+
+    const rightRailNode = rightRailRef.current;
+
+    if (
+      rightRailNode &&
+      rightRailNode.scrollHeight > rightRailNode.clientHeight + 8
+    ) {
+      const railRect = rightRailNode.getBoundingClientRect();
+      const targetRect = targetNode.getBoundingClientRect();
+      const nextTop =
+        rightRailNode.scrollTop + (targetRect.top - railRect.top) - 16;
+
+      rightRailNode.scrollTo({
+        top: Math.max(0, nextTop),
+        behavior: "smooth",
+      });
+      return;
+    }
+
+    targetNode.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function runPrimaryCaptureAction() {
     if (!captureIntent) {
-      saveSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      intentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
 
     if (demoMode) {
-      saveSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollToCaptureSection(closeSectionRef);
       return;
     }
 
@@ -1308,7 +1348,7 @@ export function QuoteCalculatorV2({
             }
           />
 
-          <div ref={saveSectionRef}>
+          <div ref={intentSectionRef}>
             <CaptureIntentLauncher
               theme={modernTheme}
               intents={orderedCaptureIntents}
@@ -1318,191 +1358,196 @@ export function QuoteCalculatorV2({
           </div>
 
           {captureIntent ? (
-            <div
-              className={
-                isPosLayout
-                  ? "grid gap-5 xl:grid-cols-[minmax(0,1.28fr)_minmax(360px,0.72fr)] 2xl:grid-cols-[minmax(0,1.36fr)_minmax(390px,0.64fr)]"
-                  : "grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]"
-              }
-            >
-              <section
+            <div className="space-y-4">
+              <div
                 className={
                   isPosLayout
-                    ? "space-y-4 xl:max-h-[calc(100vh-9rem)] xl:overflow-y-auto xl:pr-2"
-                    : "space-y-6"
+                    ? "grid gap-5 xl:min-h-0 xl:grid-cols-[minmax(0,1.28fr)_minmax(360px,0.72fr)] 2xl:grid-cols-[minmax(0,1.36fr)_minmax(390px,0.64fr)]"
+                    : "grid gap-6 xl:min-h-0 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]"
                 }
               >
-                <CaptureCatalogSection
-                  categories={config.categories}
-                  selectedOptions={selectedOptions}
-                  theme={modernTheme}
-                  currency={config.branding.currency}
-                  language={config.branding.language}
-                  title={
-                    captureIntent === "paid"
-                      ? "Agrega lo que vas a cobrar"
-                      : captureIntent === "appointment"
-                        ? "Elige lo que vas a agendar"
-                        : "Arma la cotización"
+                <section
+                  className={
+                    isPosLayout
+                      ? "space-y-4 xl:min-h-0 xl:max-h-[calc(100vh-9rem)] xl:overflow-y-auto xl:pr-2"
+                      : "space-y-6"
                   }
-                  helperText={
-                    captureIntent === "paid"
-                      ? "Toca los servicios o productos que quieres agregar al cobro."
-                      : captureIntent === "appointment"
-                        ? "Toca los servicios que vas a apartar en la cita."
-                        : "Toca los conceptos que quieres dejar en la propuesta."
-                  }
-                  onToggleOption={toggleOption}
-                />
-
-                <CaptureExtrasSection
-                  extras={config.extras}
-                  extraQuantities={extraQuantities}
-                  theme={modernTheme}
-                  currency={config.branding.currency}
-                  language={config.branding.language}
-                  title={
-                    captureIntent === "paid" ? "Extras rápidos" : config.ui.titles.extrasTitle || "Extras"
-                  }
-                  helperText={
-                    captureIntent === "paid"
-                      ? "Úsalos cuando quieras subir el ticket sin escribir."
-                      : config.ui.texts.extrasHelper ||
-                        "Ajusta extras y cantidades según lo que necesites registrar."
-                  }
-                  onAdjustExtra={adjustExtra}
-                />
-
-                {canUseManualAdjustments ? (
-                  <CaptureManualAdjustmentsSection
-                    manualLabel={manualLabel}
-                    manualAmount={manualAmount}
-                    manualAdjustments={manualAdjustments}
+                >
+                  <CaptureCatalogSection
+                    categories={config.categories}
+                    selectedOptions={selectedOptions}
                     theme={modernTheme}
                     currency={config.branding.currency}
                     language={config.branding.language}
-                    onManualLabelChange={setManualLabel}
-                    onManualAmountChange={setManualAmount}
-                    onAddManualAdjustment={addManualAdjustment}
-                    onRemoveManualAdjustment={removeManualAdjustment}
-                  />
-                ) : null}
-              </section>
-
-              <aside
-                className={
-                  isPosLayout
-                    ? "space-y-4 xl:sticky xl:top-24 xl:self-start"
-                    : "space-y-4 sm:space-y-6 xl:sticky xl:top-24 xl:self-start"
-                }
-              >
-                <CaptureDetailsStep
-                  intentMode={captureIntent}
-                  customerName={customerName}
-                  customerLabel={presentation?.customerLabel || "Cliente"}
-                  immediateLabel={presentation?.immediateLabel || "Atender ahora"}
-                  scheduledLabel={presentation?.scheduledLabel || "Agendar"}
-                  customerPhone={customerPhone}
-                  selectedClient={selectedClient}
-                  clientMatches={clientMatches}
-                  searchingClients={searchingClients}
-                  flowType={flowType}
-                  scheduledFor={scheduledFor}
-                  canScheduleOrders={canScheduleOrders}
-                  showOptionalDetails={showOptionalDetails}
-                  orderNotes={orderNotes}
-                  assignedToUserId={assignedToUserId}
-                  assignableUsers={assignableUsers}
-                  currency={config.branding.currency}
-                  language={config.branding.language}
-                  theme={modernTheme}
-                  onCustomerNameChange={(value) => {
-                    setCustomerName(value);
-                    setSelectedClient(null);
-                  }}
-                  onCustomerPhoneChange={(value) => {
-                    setCustomerPhone(value);
-                    setSelectedClient(null);
-                  }}
-                  onApplyClientSuggestion={applyClientSuggestion}
-                  formatClientActivity={formatClientActivity}
-                  onFlowTypeChange={(value) => {
-                    setFlowType(value);
-
-                    if (value === ServiceOrderFlowType.WALK_IN && captureIntent === "appointment") {
-                      setCaptureIntent(walkInFallbackIntent);
-                    }
-
-                    if (value === ServiceOrderFlowType.SCHEDULED && captureIntent !== "appointment") {
-                      setCaptureIntent("appointment");
-                    }
-                  }}
-                  onScheduledForChange={setScheduledFor}
-                  onToggleOptionalDetails={() =>
-                    setShowOptionalDetails((current) => !current)
-                  }
-                  onOrderNotesChange={setOrderNotes}
-                  onAssignedToUserChange={setAssignedToUserId}
-                />
-
-                <div ref={summarySectionRef}>
-                  <CaptureSummaryPanel
                     title={
-                      captureIntent === "appointment"
-                        ? "Lo que vas a agendar"
-                        : captureIntent === "quote"
-                          ? "Lo que vas a cotizar"
-                          : "Lo que vas a cobrar"
+                      captureIntent === "paid"
+                        ? "Agrega lo que vas a cobrar"
+                        : captureIntent === "appointment"
+                          ? "Elige lo que vas a agendar"
+                          : "Arma la cotización"
                     }
-                    emptyMessage={
-                      captureIntent === "appointment"
-                        ? "Selecciona al menos un servicio antes de apartar la cita."
-                        : captureIntent === "quote"
-                          ? "Selecciona al menos un concepto para preparar la cotización."
-                          : "Selecciona al menos un concepto para empezar a cobrar."
+                    helperText={
+                      captureIntent === "paid"
+                        ? "Toca los servicios o productos que quieres agregar al cobro."
+                        : captureIntent === "appointment"
+                          ? "Toca los servicios que vas a apartar en la cita."
+                          : "Toca los conceptos que quieres dejar en la propuesta."
                     }
-                    totalLabel={config.ui.labels.total || "Total"}
-                    total={total}
-                    selectedRows={selectedRows}
-                    extraRows={extraRows}
-                    manualAdjustments={manualAdjustments}
+                    onToggleOption={toggleOption}
+                  />
+
+                  <CaptureExtrasSection
+                    extras={config.extras}
+                    extraQuantities={extraQuantities}
+                    theme={modernTheme}
+                    currency={config.branding.currency}
+                    language={config.branding.language}
+                    title={
+                      captureIntent === "paid" ? "Extras rápidos" : config.ui.titles.extrasTitle || "Extras"
+                    }
+                    helperText={
+                      captureIntent === "paid"
+                        ? "Úsalos cuando quieras subir el ticket sin escribir."
+                        : config.ui.texts.extrasHelper ||
+                          "Ajusta extras y cantidades según lo que necesites registrar."
+                    }
+                    onAdjustExtra={adjustExtra}
+                  />
+
+                  {canUseManualAdjustments ? (
+                    <CaptureManualAdjustmentsSection
+                      manualLabel={manualLabel}
+                      manualAmount={manualAmount}
+                      manualAdjustments={manualAdjustments}
+                      theme={modernTheme}
+                      currency={config.branding.currency}
+                      language={config.branding.language}
+                      onManualLabelChange={setManualLabel}
+                      onManualAmountChange={setManualAmount}
+                      onAddManualAdjustment={addManualAdjustment}
+                      onRemoveManualAdjustment={removeManualAdjustment}
+                    />
+                  ) : null}
+                </section>
+
+                <aside
+                  ref={rightRailRef}
+                  className={
+                    isPosLayout
+                      ? "space-y-4 xl:sticky xl:top-24 xl:min-h-0 xl:max-h-[calc(100vh-9rem)] xl:overflow-y-auto xl:self-start xl:pr-2"
+                      : "space-y-4 sm:space-y-6 xl:sticky xl:top-24 xl:min-h-0 xl:max-h-[calc(100vh-9rem)] xl:overflow-y-auto xl:self-start xl:pr-2"
+                  }
+                >
+                  <CaptureDetailsStep
+                    intentMode={captureIntent}
+                    customerName={customerName}
+                    customerLabel={presentation?.customerLabel || "Cliente"}
+                    immediateLabel={presentation?.immediateLabel || "Atender ahora"}
+                    scheduledLabel={presentation?.scheduledLabel || "Agendar"}
+                    customerPhone={customerPhone}
+                    selectedClient={selectedClient}
+                    clientMatches={clientMatches}
+                    searchingClients={searchingClients}
+                    flowType={flowType}
+                    scheduledFor={scheduledFor}
+                    canScheduleOrders={canScheduleOrders}
+                    showOptionalDetails={showOptionalDetails}
+                    orderNotes={orderNotes}
+                    assignedToUserId={assignedToUserId}
+                    assignableUsers={assignableUsers}
                     currency={config.branding.currency}
                     language={config.branding.language}
                     theme={modernTheme}
-                    onRemoveSelectedRow={(row) => {
-                      if (row.categoryId && row.optionId) {
-                        toggleOption(row.categoryId, row.optionId);
+                    onCustomerNameChange={(value) => {
+                      setCustomerName(value);
+                      setSelectedClient(null);
+                    }}
+                    onCustomerPhoneChange={(value) => {
+                      setCustomerPhone(value);
+                      setSelectedClient(null);
+                    }}
+                    onApplyClientSuggestion={applyClientSuggestion}
+                    formatClientActivity={formatClientActivity}
+                    onFlowTypeChange={(value) => {
+                      setFlowType(value);
+
+                      if (value === ServiceOrderFlowType.WALK_IN && captureIntent === "appointment") {
+                        setCaptureIntent(walkInFallbackIntent);
+                      }
+
+                      if (value === ServiceOrderFlowType.SCHEDULED && captureIntent !== "appointment") {
+                        setCaptureIntent("appointment");
                       }
                     }}
-                    onAdjustExtra={adjustExtra}
-                    onRemoveManualAdjustment={removeManualAdjustment}
+                    onScheduledForChange={setScheduledFor}
+                    onToggleOptionalDetails={() =>
+                      setShowOptionalDetails((current) => !current)
+                    }
+                    onOrderNotesChange={setOrderNotes}
+                    onAssignedToUserChange={setAssignedToUserId}
                   />
-                </div>
 
-                <CaptureSaveStep
-                  intentMode={captureIntent}
-                  intentLocked
-                  demoMode={demoMode}
-                  availableSaveIntents={availableSaveIntents}
-                  primarySaveIntent={primarySaveIntent}
-                  saveIntent={saveIntent}
-                  quoteActionLabel={quoteActionLabel}
-                  total={total}
-                  savingQuote={savingQuote}
-                  savingOrder={savingOrder}
-                  downloading={downloading}
-                  flowType={flowType}
-                  canScheduleOrders={canScheduleOrders}
-                  downloadLabel={config.ui.labels.download || "Descargar resumen"}
-                  theme={modernTheme}
-                  onSaveIntentChange={setSaveIntent}
-                  onSaveQuote={saveQuote}
-                  onSaveOrder={saveOrder}
-                  onDownloadSummary={downloadSummary}
-                  onReset={resetQuote}
-                  resetLabel={config.ui.labels.reset || "Nueva captura"}
-                />
-              </aside>
+                  <div className="scroll-mt-32">
+                    <CaptureSummaryPanel
+                      title={
+                        captureIntent === "appointment"
+                          ? "Lo que vas a agendar"
+                          : captureIntent === "quote"
+                            ? "Lo que vas a cotizar"
+                            : "Lo que vas a cobrar"
+                      }
+                      emptyMessage={
+                        captureIntent === "appointment"
+                          ? "Selecciona al menos un servicio antes de apartar la cita."
+                          : captureIntent === "quote"
+                            ? "Selecciona al menos un concepto para preparar la cotización."
+                            : "Selecciona al menos un concepto para empezar a cobrar."
+                      }
+                      totalLabel={config.ui.labels.total || "Total"}
+                      total={total}
+                      selectedRows={selectedRows}
+                      extraRows={extraRows}
+                      manualAdjustments={manualAdjustments}
+                      currency={config.branding.currency}
+                      language={config.branding.language}
+                      theme={modernTheme}
+                      onRemoveSelectedRow={(row) => {
+                        if (row.categoryId && row.optionId) {
+                          toggleOption(row.categoryId, row.optionId);
+                        }
+                      }}
+                      onAdjustExtra={adjustExtra}
+                      onRemoveManualAdjustment={removeManualAdjustment}
+                    />
+                  </div>
+
+                  <div ref={closeSectionRef} className="scroll-mt-32">
+                    <CaptureSaveStep
+                      intentMode={captureIntent}
+                      intentLocked
+                      demoMode={demoMode}
+                      availableSaveIntents={availableSaveIntents}
+                      primarySaveIntent={primarySaveIntent}
+                      saveIntent={saveIntent}
+                      quoteActionLabel={quoteActionLabel}
+                      total={total}
+                      savingQuote={savingQuote}
+                      savingOrder={savingOrder}
+                      downloading={downloading}
+                      flowType={flowType}
+                      canScheduleOrders={canScheduleOrders}
+                      downloadLabel={config.ui.labels.download || "Descargar resumen"}
+                      theme={modernTheme}
+                      onSaveIntentChange={setSaveIntent}
+                      onSaveQuote={saveQuote}
+                      onSaveOrder={saveOrder}
+                      onDownloadSummary={downloadSummary}
+                      onReset={resetQuote}
+                      resetLabel={config.ui.labels.reset || "Nueva captura"}
+                    />
+                  </div>
+                </aside>
+              </div>
             </div>
           ) : null}
         </div>
@@ -1514,12 +1559,12 @@ export function QuoteCalculatorV2({
         currency={config.branding.currency}
         language={config.branding.language}
         actionLabel={primaryActionLabel}
+        downloadLabel={config.ui.labels.download || "Descargar resumen"}
         itemCount={selectedRows.length + extraRows.length + manualAdjustments.length}
+        downloading={downloading}
         theme={modernTheme}
         onAction={runPrimaryCaptureAction}
-        onShowTicket={() =>
-          summarySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
-        }
+        onDownloadSummary={downloadSummary}
       />
 
       {toast ? (

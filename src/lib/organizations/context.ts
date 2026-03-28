@@ -24,6 +24,11 @@ import {
   canManageOrganization,
   canAccessPlatformAdmin,
 } from "@/src/lib/authorization";
+import {
+  DETECTED_TIMEZONE_COOKIE,
+  ResolvedTimezonePreference,
+  resolveTimezonePreference,
+} from "@/src/lib/dates";
 
 export interface OrganizationMembershipSummary {
   organizationId: string;
@@ -33,6 +38,7 @@ export interface OrganizationMembershipSummary {
     id: string;
     name: string;
     logoUrl?: string | null;
+    defaultTimezone: string;
   };
 }
 
@@ -42,6 +48,7 @@ export interface OrganizationContext {
     email: string;
     firstName: string;
     lastName: string;
+    timezone: string | null;
     role: UserRole;
     active: boolean;
   };
@@ -50,6 +57,7 @@ export interface OrganizationContext {
   currentOrganization: OrganizationMembershipSummary["organization"] | null;
   currentOrganizationRole: UserOrganizationRole | null;
   currentOrganizationPermissionProfile: UserOrganizationPermissionProfile | null;
+  currentTimezone: ResolvedTimezonePreference | null;
 }
 
 export interface CurrentOrganizationContext extends OrganizationContext {
@@ -153,6 +161,7 @@ export async function getOrganizationContextForUser(userId: string) {
       email: true,
       firstName: true,
       lastName: true,
+      timezone: true,
       role: true,
       active: true,
       memberships: {
@@ -164,6 +173,7 @@ export async function getOrganizationContextForUser(userId: string) {
             select: {
               id: true,
               name: true,
+              defaultTimezone: true,
               quoteConfig: {
                 select: {
                   logoUrl: true,
@@ -197,6 +207,15 @@ export async function getOrganizationContextForUser(userId: string) {
       (membership) => membership.organizationId === fallbackOrganizationId
     ) ??
     null;
+  const detectedTimezone =
+    cookieStore.get(DETECTED_TIMEZONE_COOKIE)?.value ?? null;
+  const currentTimezone = currentMembership
+    ? resolveTimezonePreference({
+        userTimezone: user.timezone,
+        detectedTimezone,
+        organizationTimezone: currentMembership.organization.defaultTimezone,
+      })
+    : null;
 
   return {
     user: {
@@ -204,16 +223,17 @@ export async function getOrganizationContextForUser(userId: string) {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      timezone: user.timezone,
       role: user.role,
       active: user.active,
     },
     memberships: memberships.map((membership) => ({
       ...membership,
       organization: {
-        ...membership.organization,
-        logoUrl: membership.organization.quoteConfig?.logoUrl ?? null,
-      },
-    })),
+          ...membership.organization,
+          logoUrl: membership.organization.quoteConfig?.logoUrl ?? null,
+        },
+      })),
     currentOrganizationId: currentMembership?.organizationId ?? null,
     currentOrganization: currentMembership?.organization
       ? {
@@ -223,6 +243,7 @@ export async function getOrganizationContextForUser(userId: string) {
       : null,
     currentOrganizationRole: currentMembership?.role ?? null,
     currentOrganizationPermissionProfile: currentMembership?.permissionProfile ?? null,
+    currentTimezone,
   } satisfies OrganizationContext;
 }
 

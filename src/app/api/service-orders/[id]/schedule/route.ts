@@ -42,7 +42,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     const order = await updateServiceOrderSchedule(
       organizationContext.currentOrganizationId,
       id,
-      typeof body.scheduledFor === "string" ? body.scheduledFor : null
+      typeof body.scheduledFor === "string" ? body.scheduledFor : null,
+      organizationContext.currentTimezone?.timezone ?? null
     );
 
     return NextResponse.json(order);

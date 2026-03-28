@@ -43,6 +43,8 @@ export default async function CotizacionesPage({
   searchParams,
 }: CotizacionesDemoPageProps) {
   const context = await requireCurrentOrganization();
+  const timeZone =
+    context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
   const query = await searchParams;
   const selectedPreset =
     query.preset && query.preset in QUOTE_CONFIG_PRESETS && query.preset !== "none"
@@ -108,6 +110,7 @@ export default async function CotizacionesPage({
 
         <QuoteCalculatorV2
           config={demoConfig}
+          timeZone={timeZone}
           organizationName={`${context.currentOrganization?.name ?? "Demo"} · Demo`}
           presentation={presentation}
           assignableUsers={[]}

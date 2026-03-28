@@ -14,6 +14,7 @@ import {
   StatusBadge,
 } from "@/src/components/ui/OperationsUI";
 import Toast from "@/src/components/ui/Toast";
+import { OrganizationTimezoneCard } from "@/src/components/timezone/OrganizationTimezoneCard";
 import {
   QUOTE_CONFIG_PRESETS,
   QuoteConfigPresetKey,
@@ -30,6 +31,11 @@ interface OrganizationAdminClientProps {
   canManageOtherAdmins: boolean;
   currentOrganizationId: string | null;
   currentOrganizationName: string | null;
+  currentOrganizationDefaultTimezone: string;
+  currentUserTimezone: string | null;
+  detectedTimezone: string | null;
+  resolvedTimezone: string;
+  timezoneOptions: string[];
   manageableOrganizations: Array<{
     id: string;
     name: string;
@@ -135,6 +141,11 @@ export function OrganizationAdminClient({
   canManageOtherAdmins,
   currentOrganizationId,
   currentOrganizationName,
+  currentOrganizationDefaultTimezone,
+  currentUserTimezone,
+  detectedTimezone,
+  resolvedTimezone,
+  timezoneOptions,
   manageableOrganizations,
   members,
 }: OrganizationAdminClientProps) {
@@ -215,7 +226,15 @@ export function OrganizationAdminClient({
       const response = await fetch("/api/organization-admin/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: organizationName, quoteConfigPreset }),
+        body: JSON.stringify({
+          name: organizationName,
+          quoteConfigPreset,
+          defaultTimezone:
+            currentUserTimezone ??
+            detectedTimezone ??
+            resolvedTimezone ??
+            currentOrganizationDefaultTimezone,
+        }),
       });
       const payload = await response.json();
 
@@ -869,6 +888,14 @@ export function OrganizationAdminClient({
                   {manageableOrganizations.length} organización{manageableOrganizations.length === 1 ? "" : "es"} administrable{manageableOrganizations.length === 1 ? "" : "s"}
                 </div>
               </div>
+
+              <OrganizationTimezoneCard
+                organizationId={currentOrganizationId}
+                organizationName={currentOrganizationName}
+                defaultTimezone={currentOrganizationDefaultTimezone}
+                detectedTimezone={detectedTimezone}
+                timezoneOptions={timezoneOptions}
+              />
 
               {canCreateOrganization ? (
                 <div className="admin-surface rounded-3xl p-6 sm:p-8">

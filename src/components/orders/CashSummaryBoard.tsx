@@ -7,9 +7,11 @@ import {
   StatCard,
   StatusBadge,
 } from "@/src/components/ui/OperationsUI";
+import { formatDate } from "@/src/lib/dates";
 
 interface CashSummaryBoardProps {
   locale: string;
+  timeZone: string;
   currency: string;
   orderHrefPrefix?: string;
   clientHrefPrefix?: string;
@@ -48,15 +50,17 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: string | null, locale: string) {
+function formatDateTime(value: string | null, locale: string, timeZone: string) {
   if (!value) {
     return "Sin hora registrada";
   }
 
-  return new Intl.DateTimeFormat(locale, {
+  return formatDate(value, {
+    locale,
+    timeZone,
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  });
 }
 
 const STATUS_LABELS: Record<ServiceOrderStatus, string> = {
@@ -70,6 +74,7 @@ const STATUS_LABELS: Record<ServiceOrderStatus, string> = {
 
 export function CashSummaryBoard({
   locale,
+  timeZone,
   currency,
   orderHrefPrefix = "/ordenes",
   clientHrefPrefix = "/clientes",
@@ -135,15 +140,15 @@ export function CashSummaryBoard({
                         <p className="mt-2 text-sm">
                           <Link
                             href={getClientHref(order.clientId)}
-                            className="text-slate-600 underline-offset-4 hover:underline"
-                          >
-                            Ver cliente
-                          </Link>
-                        </p>
-                      ) : null}
+                          className="text-slate-600 underline-offset-4 hover:underline"
+                        >
+                          Ver cliente
+                        </Link>
+                      </p>
+                    ) : null}
                       {order.scheduledFor ? (
                         <p className="admin-muted text-sm leading-6">
-                          {formatDateTime(order.scheduledFor, locale)}
+                          {formatDateTime(order.scheduledFor, locale, timeZone)}
                         </p>
                       ) : null}
                     </div>
@@ -193,7 +198,7 @@ export function CashSummaryBoard({
                         </p>
                       ) : null}
                       <p className="admin-muted mt-1 text-sm leading-6">
-                        {formatDateTime(order.paidAt, locale)}
+                        {formatDateTime(order.paidAt, locale, timeZone)}
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-slate-900">
