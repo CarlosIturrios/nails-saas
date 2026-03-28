@@ -6,6 +6,7 @@ import { prisma } from "@/src/lib/db";
 import {
   OrganizationQuoteConfigInput,
   OrganizationQuoteConfigView,
+  QUOTE_TEMPLATE_OPTIONS,
   QuoteTemplateKey,
 } from "@/src/features/quote-calculator-v2/lib/types";
 import {
@@ -31,18 +32,10 @@ function sanitizeColor(value: string, fallback: string) {
 }
 
 function sanitizeQuoteTemplate(value: string | null | undefined): QuoteTemplateKey {
-  if (
-    value === "beauty_soft" ||
-    value === "barber_classic" ||
-    value === "wellness_calm" ||
-    value === "clinical_clean" ||
-    value === "workshop_pro" ||
-    value === "carwash_fresh" ||
-    value === "craft_warm" ||
-    value === "electrician_bold" ||
-    value === "legacy_gica"
-  ) {
-    return value;
+  const normalized = value?.trim() ?? "";
+
+  if (Object.prototype.hasOwnProperty.call(QUOTE_TEMPLATE_OPTIONS, normalized)) {
+    return normalized as QuoteTemplateKey;
   }
 
   return "modern";

@@ -16,7 +16,8 @@ import {
   getEditableFields,
   getListFields,
 } from "@/src/admin/config/models";
-import { PageHero } from "@/src/components/layout/AppShell";
+import { StatCard } from "@/src/components/ui/OperationsUI";
+import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import { getInitialFormValues } from "@/src/admin/lib/form";
 import { AdminModal } from "@/src/admin/components/AdminModal";
 import DataTable from "@/src/admin/components/DataTable";
@@ -99,6 +100,15 @@ export function AdminModelClient({
   );
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const didMountRef = useRef(false);
+  const visibleCount = rows.length;
+  const createLabel = `Nuevo ${config.singularLabel.toLowerCase()}`;
+  const emptyTitle = `Todavía no hay ${config.label.toLowerCase()}.`;
+  const searchSummary = deferredSearch
+    ? `Filtrando por “${deferredSearch}”.`
+    : "Sin filtros activos.";
+  const emptyDescription = deferredSearch
+    ? "Prueba con otro texto o limpia la búsqueda para volver a ver todos los registros."
+    : `Crea el primer ${config.singularLabel.toLowerCase()} para empezar a trabajar esta sección.`;
 
   const fetchRows = useCallback(async (nextPage: number, nextSearch: string) => {
     try {
@@ -256,10 +266,13 @@ export function AdminModelClient({
   return (
     <>
       <section className="space-y-6">
-        <PageHero
-          eyebrow="Sección"
+        <V2PageHero
+          kicker="Administración SaaS"
           title={config.label}
-          description={config.description || "Consulta, crea y actualiza información."}
+          description={
+            config.description ||
+            "Revisa, crea y ajusta la información de esta sección desde una sola vista."
+          }
           aside={
             <div className="flex w-full flex-col gap-3 xl:w-[320px]">
               <div className="w-full min-w-0">
@@ -277,17 +290,94 @@ export function AdminModelClient({
                 />
               </div>
               <div className="flex flex-col gap-3 sm:flex-row xl:justify-end">
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setPage(1);
+                    }}
+                    className="admin-secondary w-full px-5 py-3 text-sm font-semibold sm:w-auto"
+                  >
+                    Limpiar búsqueda
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={openCreateModal}
                   className="admin-primary w-full px-5 py-3 text-sm font-semibold sm:w-auto"
                 >
-                  Nuevo {config.singularLabel}
+                  {createLabel}
                 </button>
               </div>
             </div>
           }
         />
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Registros totales"
+            value={total}
+            hint="Conteo actual dentro de esta sección."
+          />
+          <StatCard
+            label="Visibles ahora"
+            value={visibleCount}
+            hint={
+              loading
+                ? "Actualizando la lista..."
+                : "Cantidad de registros mostrados en esta página."
+            }
+          />
+          <StatCard
+            label="Página actual"
+            value={page}
+            hint={`Se muestran hasta ${pageSize} registros por página.`}
+          />
+          <StatCard
+            label="Filtros"
+            value={deferredSearch ? "Activos" : "Sin filtro"}
+            hint={searchSummary}
+          />
+        </section>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+          <section className="rounded-[28px] border border-[#e8dece] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.04)] sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Registros
+                </p>
+                <h2 className="mt-3 font-poppins text-2xl font-semibold text-slate-950">
+                  Listado actual
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {searchSummary} Usa editar para ajustar un registro o crea uno nuevo desde el botón principal.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex rounded-full border border-[#ddd1bf] bg-[#fffaf2] px-3 py-1 text-xs font-semibold text-slate-700">
+                  {config.singularLabel}
+                </span>
+                <span className="inline-flex rounded-full border border-[#ddd1bf] bg-[#fffaf2] px-3 py-1 text-xs font-semibold text-slate-700">
+                  {visibleCount} en pantalla
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-[#e8dece] bg-white p-5 shadow-[0_10px_26px_rgba(15,23,42,0.04)] sm:p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Cómo trabajar aquí
+            </p>
+            <h2 className="mt-3 font-poppins text-xl font-semibold text-slate-950">
+              Administra sin perder contexto
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Busca primero, revisa la fila correcta y usa editar para cambios puntuales. Si vas a dar de alta algo nuevo, hazlo desde el botón principal.
+            </p>
+          </section>
+        </div>
 
         <DataTable
           columns={listFields.map((field) => ({
@@ -309,6 +399,10 @@ export function AdminModelClient({
           onEdit={openEditModal}
           onDelete={requestDelete}
           deletingId={deletingId}
+          emptyTitle={emptyTitle}
+          emptyDescription={emptyDescription}
+          onCreate={openCreateModal}
+          createLabel={createLabel}
         />
       </section>
 

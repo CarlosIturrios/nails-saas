@@ -44,17 +44,16 @@ export default function Toast({
   return (
     <div
       className={`
-        fixed bottom-6 left-1/2 -translate-x-1/2
-        flex items-center gap-2
-        px-6 py-3
-        text-white text-sm font-medium
-        rounded-full
+        fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+5rem)]
+        z-[9999] mx-auto flex max-w-[calc(100vw-2rem)] items-start gap-2
+        rounded-2xl px-4 py-3 text-sm font-medium text-white
         backdrop-blur-md
         shadow-2xl
-        z-[9999]
         transition-all duration-300
+        md:bottom-6 md:left-1/2 md:right-auto md:top-auto md:w-auto md:max-w-md
+        md:-translate-x-1/2 md:items-center md:rounded-full md:px-6
         ${styles[type]}
-        ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
+        ${visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 md:translate-y-4"}
       `}
     >
       {icons[type]}

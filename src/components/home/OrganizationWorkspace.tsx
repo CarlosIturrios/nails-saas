@@ -59,7 +59,7 @@ export function OrganizationWorkspace({
           </h2>
           <p className="admin-muted mt-2 max-w-2xl text-sm leading-6">
             {selectionOnly
-              ? "Busca y selecciona la organización que quieres usar en esta sesión."
+              ? "Busca y selecciona la organización que quieres usar para entrar a la app principal."
               : "Consulta tu organización activa, cambia de espacio o sal de la organización actual."}
           </p>
         </div>
@@ -96,7 +96,7 @@ export function OrganizationWorkspace({
               </h3>
               <p className="admin-muted mt-2 text-sm leading-6">
                 {selectedOrganization
-                  ? "Usa este espacio para ver cotizaciones, administrar datos o cambiar tu contexto de trabajo."
+                  ? "Usa este espacio para entrar a captura, pendientes, agenda y el resto de la operación con el contexto correcto."
                   : "Primero elige una organización de la lista para continuar."}
               </p>
 

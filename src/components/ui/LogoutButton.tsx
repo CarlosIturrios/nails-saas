@@ -1,10 +1,14 @@
 // src/components/ui/LogoutButton.tsx
-"use client"
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function LogoutButton() {
+interface LogoutButtonProps {
+  className?: string;
+}
+
+export default function LogoutButton({ className = "" }: LogoutButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -24,8 +28,7 @@ export default function LogoutButton() {
     <button
       onClick={handleLogout}
       disabled={loading}
-      className={`btn-glam px-4 py-2 rounded-lg font-semibold text-white transition
-        ${loading ? "opacity-50 cursor-not-allowed" : "hover:scale-105"}`}
+      className={`inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#e8dece] bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-[#d6c8b3] hover:bg-[#fffdf9] disabled:cursor-not-allowed disabled:opacity-50 ${className}`.trim()}
     >
       {loading ? "Cerrando sesión..." : "Cerrar sesión"}
     </button>

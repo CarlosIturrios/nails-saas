@@ -1,7 +1,10 @@
 import { put } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
-import { requireAdminApiUser } from "@/src/admin/lib/auth";
+import {
+  assertOrganizationAdminAccess,
+  getOrganizationContextFromRequest,
+} from "@/src/lib/organizations/context";
 
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "-").toLowerCase();
@@ -9,8 +12,6 @@ function sanitizeFileName(name: string) {
 
 export async function POST(request: Request) {
   try {
-    await requireAdminApiUser();
-
     const publicBlobToken = process.env.BLOB_PUBLIC_READ_WRITE_TOKEN;
 
     if (!publicBlobToken) {
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get("file");
     const organizationId = String(formData.get("organizationId") ?? "").trim();
+    const context = await getOrganizationContextFromRequest();
 
     if (!(file instanceof File)) {
       return NextResponse.json(
@@ -40,6 +42,8 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    await assertOrganizationAdminAccess(context.user.id, organizationId);
 
     const blob = await put(
       `logos/${organizationId}/${Date.now()}-${sanitizeFileName(file.name)}`,

@@ -3,8 +3,6 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
-import { GlobalHomeButton } from "@/src/components/ui/GlobalHomeButton";
-import { GlobalOrganizationSwitcherServer } from "@/src/components/organization/GlobalOrganizationSwitcherServer";
 
 import { Playfair_Display, Poppins } from "next/font/google"
 
@@ -21,9 +19,9 @@ const poppins = Poppins({
 })
 
 export const metadata: Metadata = {
-  title: "Gica Nails | Calculadora de Cotizaciones",
+  title: "GICA | Plataforma de Operación Comercial",
   description:
-    "Calculadora profesional de cotizaciones para manicuristas modernas.",
+    "Centraliza cotizaciones, clientes, citas, pagos y órdenes de trabajo en un solo sistema.",
 };
 
 export default async function RootLayout({
@@ -32,11 +30,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <body className={`${playfair.variable} ${poppins.variable} antialiased`}>
         {children}
-        <GlobalOrganizationSwitcherServer />
-        <GlobalHomeButton />
       </body>
     </html>
   );

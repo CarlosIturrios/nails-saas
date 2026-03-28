@@ -41,7 +41,7 @@ export function QuotationWizardLayout({
   return (
     <section className="space-y-4 sm:space-y-5 lg:space-y-6">
       <WizardHeader
-        eyebrow="Cotizaciones"
+        eyebrow="Configuración de captura"
         title={title}
         description={description}
         aside={organizationSelector}

@@ -58,18 +58,68 @@ const pricing = {
 };
 
 const extras = [
-  { name: "Tonos extra", price: 2, includedQuantity: 2 },
-  { name: "Pedrería", price: 5, includedQuantity: 0 },
-  { name: "Relieve", price: 10, includedQuantity: 0 },
-  { name: "Hoja metalica", price: 2, includedQuantity: 0 },
-  { name: "Efecto Espejo", price: 5, includedQuantity: 0 },
-  { name: "Efecto Arcoíris", price: 5, includedQuantity: 0 },
-  { name: "Efecto Aurora", price: 5, includedQuantity: 0 },
-  { name: "Relleno", price: 2, includedQuantity: 0 },
-  { name: "Reposición", price: 10, includedQuantity: 0 },
-  { name: "Dijes", price: 10, includedQuantity: 0 },
-  { name: "Stickers", price: 2, includedQuantity: 0 },
-  { name: "Naturaleza muerta", price: 2, includedQuantity: 0 },
+  {
+    name: "Tonos extra",
+    price: 2,
+    includedQuantity: 2,
+    metadata: { sourceKey: "extra_tones", displayGroup: "tones", captureMode: "individual", unitLabel: "tono" },
+  },
+  {
+    name: "Pedrería",
+    price: 5,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
+  {
+    name: "Relieve",
+    price: 10,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
+  {
+    name: "Hoja metalica",
+    price: 2,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
+  {
+    name: "Efecto Espejo",
+    price: 5,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
+  {
+    name: "Efecto Arcoíris",
+    price: 5,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
+  {
+    name: "Efecto Aurora",
+    price: 5,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
+  { name: "Relleno", price: 2, includedQuantity: 0, metadata: null },
+  {
+    name: "Reposición",
+    price: 10,
+    includedQuantity: 0,
+    metadata: { captureMode: "individual", unitLabel: "uña" },
+  },
+  { name: "Dijes", price: 10, includedQuantity: 0, metadata: null },
+  {
+    name: "Stickers",
+    price: 2,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
+  {
+    name: "Naturaleza muerta",
+    price: 2,
+    includedQuantity: 0,
+    metadata: { displayGroup: "decorations", captureMode: "individual", unitLabel: "detalle" },
+  },
 ];
 
 async function main() {
@@ -125,6 +175,7 @@ async function main() {
             includedQuantity: extra.includedQuantity,
             pricingType: ExtraPricingType.PER_UNIT,
             sortOrder: extraIndex,
+            metadata: extra.metadata,
           })),
         },
         businessRules: {

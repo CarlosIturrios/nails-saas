@@ -2,7 +2,12 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Prisma, UserOrganizationRole, UserRole } from "@prisma/client";
+import {
+  Prisma,
+  UserOrganizationPermissionProfile,
+  UserOrganizationRole,
+  UserRole,
+} from "@prisma/client";
 import type { NextResponse } from "next/server";
 
 import {
@@ -10,14 +15,20 @@ import {
   AUTH_COOKIE_NAME,
   ORGANIZATION_STATE_COOKIE,
   OrganizationState,
+  SESSION_MAX_AGE_SECONDS,
   SessionTokenPayload,
 } from "@/src/lib/auth/session";
 import { verifyJwt } from "@/src/lib/auth/jwt";
 import { prisma } from "@/src/lib/db";
+import {
+  canManageOrganization,
+  canAccessPlatformAdmin,
+} from "@/src/lib/authorization";
 
 export interface OrganizationMembershipSummary {
   organizationId: string;
   role: UserOrganizationRole;
+  permissionProfile: UserOrganizationPermissionProfile;
   organization: {
     id: string;
     name: string;
@@ -38,6 +49,14 @@ export interface OrganizationContext {
   currentOrganizationId: string | null;
   currentOrganization: OrganizationMembershipSummary["organization"] | null;
   currentOrganizationRole: UserOrganizationRole | null;
+  currentOrganizationPermissionProfile: UserOrganizationPermissionProfile | null;
+}
+
+export interface CurrentOrganizationContext extends OrganizationContext {
+  currentOrganizationId: string;
+  currentOrganization: OrganizationMembershipSummary["organization"];
+  currentOrganizationRole: UserOrganizationRole;
+  currentOrganizationPermissionProfile: UserOrganizationPermissionProfile;
 }
 
 interface SetOrganizationCookiesParams {
@@ -48,6 +67,7 @@ interface SetOrganizationCookiesParams {
 function baseCookieOptions() {
   return {
     httpOnly: true,
+    maxAge: SESSION_MAX_AGE_SECONDS,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
@@ -139,6 +159,7 @@ export async function getOrganizationContextForUser(userId: string) {
         select: {
           organizationId: true,
           role: true,
+          permissionProfile: true,
           organization: {
             select: {
               id: true,
@@ -201,6 +222,7 @@ export async function getOrganizationContextForUser(userId: string) {
         }
       : null,
     currentOrganizationRole: currentMembership?.role ?? null,
+    currentOrganizationPermissionProfile: currentMembership?.permissionProfile ?? null,
   } satisfies OrganizationContext;
 }
 
@@ -221,53 +243,38 @@ export async function requireCurrentOrganization() {
   const context = await requireOrganizationContext();
 
   if (!context.currentOrganizationId) {
-    redirect("/home");
+    redirect("/");
   }
 
-  return context;
+  return context as CurrentOrganizationContext;
 }
 
 export async function requireOrganizationAdminContext() {
   const context = await requireOrganizationContext();
 
-  if (context.user.role === UserRole.ADMIN) {
+  if (canManageOrganization(context.user.role, context.currentOrganizationRole)) {
     return context;
   }
-
-  if (!context.currentOrganizationId) {
-    redirect("/home");
-  }
-
-  if (context.currentOrganizationRole !== UserOrganizationRole.ADMIN) {
-    redirect("/home");
-  }
-
-  return context;
+  redirect("/mas");
 }
 
 export async function requireOrganizationAdminApiContext() {
   const context = await getOrganizationContextFromRequest();
 
-  if (context.user.role === UserRole.ADMIN) {
+  if (canManageOrganization(context.user.role, context.currentOrganizationRole)) {
     return context;
   }
-
   if (!context.currentOrganizationId) {
     throw new Error("Selecciona una organización antes de continuar");
   }
-
-  if (context.currentOrganizationRole !== UserOrganizationRole.ADMIN) {
-    throw new Error("No autorizado");
-  }
-
-  return context;
+  throw new Error("No autorizado");
 }
 
 export async function requirePlatformAdminContext() {
   const context = await requireOrganizationContext();
 
-  if (context.user.role !== UserRole.ADMIN) {
-    redirect("/home");
+  if (!canAccessPlatformAdmin(context.user.role)) {
+    redirect("/mas");
   }
 
   return context;
@@ -309,7 +316,7 @@ export async function assertOrganizationAdminAccess(
 ) {
   const context = await getOrganizationContextForUser(userId);
 
-  if (context.user.role === UserRole.ADMIN) {
+  if (canManageOrganization(context.user.role, null)) {
     return true;
   }
 
@@ -317,7 +324,7 @@ export async function assertOrganizationAdminAccess(
     (item) => item.organizationId === organizationId
   );
 
-  if (!membership || membership.role !== UserOrganizationRole.ADMIN) {
+  if (!membership || membership.role !== UserOrganizationRole.ORG_ADMIN) {
     throw new Error("No autorizado para administrar esta organización");
   }
 

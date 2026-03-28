@@ -16,18 +16,62 @@ datasource db {
 
 // ===== ENUMS =====
 enum UserRole {
-  ADMIN // administrador de la organización
-  EMPLOYEE // empleado / staff
+  SUPER_ADMIN
+  SAAS_ADMIN
+  STANDARD_USER
 }
 
 enum UserOrganizationRole {
-  ADMIN
-  MEMBER
+  ORG_ADMIN
+  EMPLOYEE
+}
+
+enum UserOrganizationPermissionProfile {
+  FULL_SERVICE
+  FRONT_DESK
+  SALES_ONLY
+  OPERATOR
+  VIEW_ONLY
 }
 
 enum ExtraPricingType {
   PER_UNIT
   FIXED
+}
+
+enum ServiceOrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  PAID
+  CANCELLED
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  CONVERTED
+  CANCELLED
+  EXPIRED
+}
+
+enum ServiceOrderFlowType {
+  WALK_IN
+  SCHEDULED
+}
+
+enum ServiceOrderItemType {
+  SERVICE
+  EXTRA
+  ADJUSTMENT
+}
+
+enum QuoteItemType {
+  SERVICE
+  EXTRA
+  ADJUSTMENT
 }
 
 // ===== MODELOS =====
@@ -42,6 +86,8 @@ model Organization {
   memberships UserOrganization[]
   clients     Client[]            @relation("OrganizationClients")
   quoteConfig OrganizationConfig?
+  quotes      Quote[]
+  serviceOrders ServiceOrder[]
 }
 
 model User {
@@ -60,6 +106,9 @@ model User {
   // Login codes asociados
   loginCodes  LoginCode[]
   memberships UserOrganization[]
+  createdQuotes Quote[] @relation("QuotesCreatedBy")
+  createdServiceOrders ServiceOrder[] @relation("ServiceOrdersCreatedBy")
+  assignedServiceOrders ServiceOrder[] @relation("ServiceOrdersAssignedTo")
 }
 
 model Client {
@@ -74,6 +123,8 @@ model Client {
   // Relación con organización
   organization   Organization? @relation("OrganizationClients", fields: [organizationId], references: [id])
   organizationId String?
+  quotes         Quote[]
+  serviceOrders  ServiceOrder[]
 }
 
 model LoginCode {
@@ -92,7 +143,8 @@ model UserOrganization {
   id             String               @id @default(cuid())
   userId         String
   organizationId String
-  role           UserOrganizationRole @default(MEMBER)
+  role           UserOrganizationRole @default(EMPLOYEE)
+  permissionProfile UserOrganizationPermissionProfile @default(FULL_SERVICE)
   createdAt      DateTime             @default(now())
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -200,4 +252,114 @@ model UIConfig {
   updatedAt            DateTime @updatedAt
 
   organizationConfig OrganizationConfig @relation(fields: [organizationConfigId], references: [id], onDelete: Cascade)
+}
+
+model ServiceOrder {
+  id              String               @id @default(cuid())
+  organizationId  String
+  clientId        String?
+  sourceQuoteId   String?
+  createdByUserId String?
+  assignedToUserId String?
+  status          ServiceOrderStatus   @default(DRAFT)
+  flowType        ServiceOrderFlowType @default(WALK_IN)
+  customerName    String?
+  customerPhone   String?
+  notes           String?
+  scheduledFor    DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  paidAt          DateTime?
+  subtotal        Int                  @default(0)
+  total           Int                  @default(0)
+  currency        String               @default("MXN")
+  source          String               @default("quote_calculator_v2")
+  snapshot        Json?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  sourceQuote  Quote?       @relation("ServiceOrderSourceQuote", fields: [sourceQuoteId], references: [id], onDelete: SetNull)
+  createdBy    User?        @relation("ServiceOrdersCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  assignedTo   User?        @relation("ServiceOrdersAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  items        ServiceOrderItem[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, scheduledFor])
+  @@index([clientId])
+  @@index([assignedToUserId])
+  @@index([sourceQuoteId])
+}
+
+model ServiceOrderItem {
+  id             String               @id @default(cuid())
+  serviceOrderId String
+  itemType       ServiceOrderItemType
+  label          String
+  description    String?
+  quantity       Int                  @default(1)
+  unitPrice      Int
+  total          Int
+  sortOrder      Int                  @default(0)
+  metadata       Json?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId, sortOrder])
+}
+
+model Quote {
+  id               String               @id @default(cuid())
+  organizationId   String
+  clientId         String?
+  createdByUserId  String?
+  status           QuoteStatus          @default(DRAFT)
+  flowType         ServiceOrderFlowType @default(WALK_IN)
+  customerName     String?
+  customerPhone    String?
+  notes            String?
+  scheduledFor     DateTime?
+  acceptedAt       DateTime?
+  convertedAt      DateTime?
+  subtotal         Int                  @default(0)
+  total            Int                  @default(0)
+  currency         String               @default("MXN")
+  source           String               @default("quote_calculator_v2")
+  snapshot         Json?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdBy      User?             @relation("QuotesCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items          QuoteItem[]
+  serviceOrders  ServiceOrder[]    @relation("ServiceOrderSourceQuote")
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, scheduledFor])
+  @@index([clientId])
+}
+
+model QuoteItem {
+  id        String        @id @default(cuid())
+  quoteId    String
+  itemType  QuoteItemType
+  label     String
+  description String?
+  quantity  Int           @default(1)
+  unitPrice Int
+  total     Int
+  sortOrder Int           @default(0)
+  metadata  Json?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId, sortOrder])
 }

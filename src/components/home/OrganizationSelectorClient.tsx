@@ -8,6 +8,8 @@ import Toast from "@/src/components/ui/Toast";
 
 interface OrganizationSelectorClientProps {
   destination?: string;
+  currentOrganizationId?: string | null;
+  currentOrganizationName?: string | null;
   organizations: Array<{
     id: string;
     name: string;
@@ -16,7 +18,9 @@ interface OrganizationSelectorClientProps {
 }
 
 export function OrganizationSelectorClient({
-  destination = "/home",
+  destination = "/",
+  currentOrganizationId = null,
+  currentOrganizationName = null,
   organizations,
 }: OrganizationSelectorClientProps) {
   const router = useRouter();
@@ -57,8 +61,8 @@ export function OrganizationSelectorClient({
     <>
       <OrganizationWorkspace
         organizations={organizations}
-        currentOrganizationId={null}
-        currentOrganizationName={null}
+        currentOrganizationId={currentOrganizationId}
+        currentOrganizationName={currentOrganizationName}
         switching={Boolean(loadingId)}
         selectionOnly
         onActivate={handleSelect}

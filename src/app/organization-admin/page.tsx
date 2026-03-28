@@ -1,26 +1,22 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { UserRole } from "@prisma/client";
 
-import { AdminLogoutButton } from "@/src/admin/components/AdminLogoutButton";
 import { OrganizationAdminClient } from "@/src/components/organization-admin/OrganizationAdminClient";
+import { V2_ROUTES } from "@/src/features/v2/routing";
 import {
-  AppHeader,
-  AppMain,
-  AppShell,
-  DrawerActionStack,
-} from "@/src/components/layout/AppShell";
+  canAccessPlatformAdmin,
+  canCreateOrganizations,
+} from "@/src/lib/authorization";
 import { prisma } from "@/src/lib/db";
 import { requireOrganizationContext } from "@/src/lib/organizations/context";
 
 export default async function OrganizationAdminPage() {
   const context = await requireOrganizationContext();
   const hasOrganizationAdminAccess =
-    context.user.role === UserRole.ADMIN ||
-    context.memberships.some((membership) => membership.role === "ADMIN");
+    canAccessPlatformAdmin(context.user.role) ||
+    context.memberships.some((membership) => membership.role === "ORG_ADMIN");
 
   if (!hasOrganizationAdminAccess) {
-    redirect("/home");
+    redirect(V2_ROUTES.more);
   }
 
   if (!context.currentOrganizationId && context.memberships.length > 1) {
@@ -35,9 +31,11 @@ export default async function OrganizationAdminPage() {
         select: {
           id: true,
           role: true,
+          permissionProfile: true,
           createdAt: true,
           user: {
             select: {
+              id: true,
               firstName: true,
               lastName: true,
               email: true,
@@ -56,71 +54,26 @@ export default async function OrganizationAdminPage() {
     : [];
 
   const manageableOrganizations = (
-    context.user.role === UserRole.ADMIN
+    canAccessPlatformAdmin(context.user.role)
       ? context.memberships
-      : context.memberships.filter((membership) => membership.role === "ADMIN")
+      : context.memberships.filter((membership) => membership.role === "ORG_ADMIN")
   ).map((membership) => ({
     id: membership.organization.id,
     name: membership.organization.name,
   }));
 
   return (
-    <AppShell>
-      <AppHeader
-        eyebrow="Sesión activa"
-        title="Administración de organizaciones"
-        mobileTitle="Organización"
-        subtitle={`${context.user.firstName} ${context.user.lastName} · ${context.user.email}`}
-        organizationName={context.currentOrganization?.name ?? null}
-        userName={`${context.user.firstName} ${context.user.lastName}`}
-        userEmail={context.user.email}
-        badges={[
-          ...(context.currentOrganizationRole
-            ? [{ label: context.currentOrganizationRole }]
-            : []),
-          { label: context.user.role },
-        ]}
-        navItems={[
-          { href: "/home", label: "Inicio" },
-          { href: "/organization-admin", label: "Gestionar organización" },
-          { href: "/organization-admin/cotizaciones-v2", label: "Configurar cotizaciones" },
-          ...(context.user.role === UserRole.ADMIN
-            ? [{ href: "/admin", label: "Panel admin" }]
-            : []),
-        ]}
-        actions={
-          <DrawerActionStack>
-            <Link
-              href="/home"
-              className="admin-secondary inline-flex w-full items-center justify-center px-4 py-3 text-sm font-medium"
-            >
-              Ir a Home
-            </Link>
-            {context.user.role === UserRole.ADMIN ? (
-              <Link
-                href="/admin"
-                className="admin-secondary inline-flex w-full items-center justify-center px-4 py-3 text-sm font-medium"
-              >
-                Ir a Admin
-              </Link>
-            ) : null}
-            <AdminLogoutButton />
-          </DrawerActionStack>
-        }
-      />
-
-      <AppMain>
-        <OrganizationAdminClient
-          canCreateOrganization={context.user.role === UserRole.ADMIN}
-          currentOrganizationId={context.currentOrganizationId}
-          currentOrganizationName={context.currentOrganization?.name ?? null}
-          manageableOrganizations={manageableOrganizations}
-          members={members.map((member) => ({
-            ...member,
-            createdAt: member.createdAt.toISOString(),
-          }))}
-        />
-      </AppMain>
-    </AppShell>
+    <OrganizationAdminClient
+      canCreateOrganization={canCreateOrganizations(context.user.role)}
+      currentUserId={context.user.id}
+      canManageOtherAdmins={canAccessPlatformAdmin(context.user.role)}
+      currentOrganizationId={context.currentOrganizationId}
+      currentOrganizationName={context.currentOrganization?.name ?? null}
+      manageableOrganizations={manageableOrganizations}
+      members={members.map((member) => ({
+        ...member,
+        createdAt: member.createdAt.toISOString(),
+      }))}
+    />
   );
 }

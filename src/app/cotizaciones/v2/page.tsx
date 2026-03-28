@@ -1,24 +1,28 @@
-import { QuoteCalculatorV2 } from "@/src/features/quote-calculator-v2/components/QuoteCalculatorV2";
-import { getOrganizationQuoteConfigView } from "@/src/features/quote-calculator-v2/lib/config";
-import { requireCurrentOrganization } from "@/src/lib/organizations/context";
+import { redirect } from "next/navigation";
+import { buildRouteWithSearch, V2_ROUTES } from "@/src/features/v2/routing";
 
-export default async function CotizacionesV2Page() {
-  const context = await requireCurrentOrganization();
-  const organizationId = context.currentOrganizationId;
+interface CotizacionesV2PageProps {
+  searchParams: Promise<{
+    clientId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    intent?: string;
+  }>;
+}
 
-  if (!organizationId) {
-    return null;
-  }
-
-  const config = await getOrganizationQuoteConfigView(organizationId);
-
-  return (
-    <QuoteCalculatorV2
-      config={config}
-      organizationName={context.currentOrganization?.name ?? "Organización"}
-      canUseManualAdjustments={
-        context.user.role === "ADMIN" || context.currentOrganizationRole === "ADMIN"
-      }
-    />
+export default async function CotizacionesV2Page({
+  searchParams,
+}: CotizacionesV2PageProps) {
+  const query = await searchParams;
+  redirect(
+    buildRouteWithSearch(V2_ROUTES.capture, {
+      clientId: query.clientId,
+      customerName: query.customerName,
+      customerPhone: query.customerPhone,
+      intent:
+        query.intent === "quote" || query.intent === "order" || query.intent === "paid"
+          ? query.intent
+          : undefined,
+    })
   );
 }

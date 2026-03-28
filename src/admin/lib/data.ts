@@ -1,6 +1,11 @@
 import "server-only";
 
-import { Prisma, UserOrganizationRole, UserRole } from "@prisma/client";
+import {
+  Prisma,
+  UserOrganizationPermissionProfile,
+  UserOrganizationRole,
+  UserRole,
+} from "@prisma/client";
 
 import {
   AdminFieldConfig,
@@ -72,6 +77,34 @@ function getUserDisplayName(user: {
 }) {
   const fullName = `${user.firstName} ${user.lastName}`.trim();
   return fullName ? `${fullName} · ${user.email}` : user.email;
+}
+
+function getClientDisplayName(client: {
+  name: string;
+  phone: string;
+  email?: string | null;
+}) {
+  return [client.name, client.phone, client.email].filter(Boolean).join(" · ");
+}
+
+function getQuoteDisplayLabel(quote: {
+  id: string;
+  customerName?: string | null;
+  status?: string;
+  client?: { name: string } | null;
+}) {
+  const customer = quote.customerName?.trim() || quote.client?.name || "Sin cliente";
+  return `#${quote.id.slice(0, 8)} · ${customer}${quote.status ? ` · ${quote.status}` : ""}`;
+}
+
+function getServiceOrderDisplayLabel(order: {
+  id: string;
+  customerName?: string | null;
+  status?: string;
+  client?: { name: string } | null;
+}) {
+  const customer = order.customerName?.trim() || order.client?.name || "Sin cliente";
+  return `#${order.id.slice(0, 8)} · ${customer}${order.status ? ` · ${order.status}` : ""}`;
 }
 
 function joinLabels(labels: string[]) {
@@ -272,6 +305,90 @@ async function getOrganizationOptions() {
   }));
 }
 
+async function getClientOptions() {
+  const clients = await prisma.client.findMany({
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      email: true,
+      organization: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: [{ name: "asc" }, { createdAt: "desc" }],
+    take: 200,
+  });
+
+  return clients.map((client) => ({
+    value: client.id,
+    label: getClientDisplayName(client),
+    description: client.organization?.name ?? "Sin organización",
+  }));
+}
+
+async function getQuoteOptions() {
+  const quotes = await prisma.quote.findMany({
+    select: {
+      id: true,
+      customerName: true,
+      status: true,
+      total: true,
+      currency: true,
+      client: {
+        select: {
+          name: true,
+        },
+      },
+      organization: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  return quotes.map((quote) => ({
+    value: quote.id,
+    label: getQuoteDisplayLabel(quote),
+    description: `${quote.organization.name} · ${quote.currency} ${quote.total}`,
+  }));
+}
+
+async function getServiceOrderOptions() {
+  const serviceOrders = await prisma.serviceOrder.findMany({
+    select: {
+      id: true,
+      customerName: true,
+      status: true,
+      total: true,
+      currency: true,
+      client: {
+        select: {
+          name: true,
+        },
+      },
+      organization: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  return serviceOrders.map((order) => ({
+    value: order.id,
+    label: getServiceOrderDisplayLabel(order),
+    description: `${order.organization.name} · ${order.currency} ${order.total}`,
+  }));
+}
+
 export async function getAdminFormOptions(config: AdminModelConfig): Promise<AdminFormOptions> {
   const formOptions: AdminFormOptions = {};
 
@@ -295,6 +412,21 @@ export async function getAdminFormOptions(config: AdminModelConfig): Promise<Adm
 
     if (field.relation.resource === "organizations") {
       formOptions[field.name] = await getOrganizationOptions();
+      continue;
+    }
+
+    if (field.relation.resource === "clients") {
+      formOptions[field.name] = await getClientOptions();
+      continue;
+    }
+
+    if (field.relation.resource === "quotes") {
+      formOptions[field.name] = await getQuoteOptions();
+      continue;
+    }
+
+    if (field.relation.resource === "serviceOrders") {
+      formOptions[field.name] = await getServiceOrderOptions();
     }
   }
 
@@ -340,7 +472,8 @@ async function syncUserMemberships(userId: string, organizationIds: string[]) {
             data: organizationsToCreate.map((organizationId) => ({
               userId,
               organizationId,
-              role: UserOrganizationRole.MEMBER,
+              role: UserOrganizationRole.EMPLOYEE,
+              permissionProfile: UserOrganizationPermissionProfile.FULL_SERVICE,
             })),
           }),
         ]
@@ -383,7 +516,8 @@ async function syncOrganizationMembers(organizationId: string, userIds: string[]
             data: usersToCreate.map((userId) => ({
               userId,
               organizationId,
-              role: UserOrganizationRole.MEMBER,
+              role: UserOrganizationRole.EMPLOYEE,
+              permissionProfile: UserOrganizationPermissionProfile.FULL_SERVICE,
             })),
           }),
         ]
@@ -579,10 +713,10 @@ export async function listAdminRecords(
 
   if (config.model === "userOrganization") {
     const normalizedRoleSearch =
-      search.toUpperCase() === UserOrganizationRole.ADMIN
-        ? UserOrganizationRole.ADMIN
-        : search.toUpperCase() === UserOrganizationRole.MEMBER
-          ? UserOrganizationRole.MEMBER
+      search.toUpperCase() === UserOrganizationRole.ORG_ADMIN
+        ? UserOrganizationRole.ORG_ADMIN
+        : search.toUpperCase() === UserOrganizationRole.EMPLOYEE
+          ? UserOrganizationRole.EMPLOYEE
           : null;
 
     const where = search
@@ -744,6 +878,312 @@ export async function listAdminRecords(
     };
   }
 
+  if (config.model === "quote") {
+    const where = search
+      ? {
+          OR: [
+            { customerName: { contains: search, mode: INSENSITIVE_MODE } },
+            { customerPhone: { contains: search, mode: INSENSITIVE_MODE } },
+            { notes: { contains: search, mode: INSENSITIVE_MODE } },
+            { status: { equals: search.toUpperCase() as never } },
+            {
+              organization: {
+                name: { contains: search, mode: INSENSITIVE_MODE },
+              },
+            },
+            {
+              client: {
+                name: { contains: search, mode: INSENSITIVE_MODE },
+              },
+            },
+            {
+              createdBy: {
+                OR: [
+                  { firstName: { contains: search, mode: INSENSITIVE_MODE } },
+                  { lastName: { contains: search, mode: INSENSITIVE_MODE } },
+                  { email: { contains: search, mode: INSENSITIVE_MODE } },
+                ],
+              },
+            },
+          ],
+        }
+      : {};
+
+    const [total, items] = await Promise.all([
+      prisma.quote.count({ where }),
+      prisma.quote.findMany({
+        where,
+        select: {
+          id: true,
+          organizationId: true,
+          clientId: true,
+          createdByUserId: true,
+          status: true,
+          flowType: true,
+          customerName: true,
+          customerPhone: true,
+          notes: true,
+          scheduledFor: true,
+          acceptedAt: true,
+          convertedAt: true,
+          subtotal: true,
+          total: true,
+          currency: true,
+          source: true,
+          createdAt: true,
+          organization: { select: { name: true } },
+          client: { select: { name: true } },
+          createdBy: {
+            select: { firstName: true, lastName: true, email: true },
+          },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    return {
+      items: items.map((item) => ({
+        ...item,
+        organizationName: item.organization.name,
+        clientName: item.client?.name ?? "-",
+        createdByName: item.createdBy ? getUserDisplayName(item.createdBy) : "-",
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  if (config.model === "serviceOrder") {
+    const where = search
+      ? {
+          OR: [
+            { customerName: { contains: search, mode: INSENSITIVE_MODE } },
+            { customerPhone: { contains: search, mode: INSENSITIVE_MODE } },
+            { notes: { contains: search, mode: INSENSITIVE_MODE } },
+            { status: { equals: search.toUpperCase() as never } },
+            {
+              organization: {
+                name: { contains: search, mode: INSENSITIVE_MODE },
+              },
+            },
+            {
+              client: {
+                name: { contains: search, mode: INSENSITIVE_MODE },
+              },
+            },
+            {
+              createdBy: {
+                OR: [
+                  { firstName: { contains: search, mode: INSENSITIVE_MODE } },
+                  { lastName: { contains: search, mode: INSENSITIVE_MODE } },
+                  { email: { contains: search, mode: INSENSITIVE_MODE } },
+                ],
+              },
+            },
+            {
+              assignedTo: {
+                OR: [
+                  { firstName: { contains: search, mode: INSENSITIVE_MODE } },
+                  { lastName: { contains: search, mode: INSENSITIVE_MODE } },
+                  { email: { contains: search, mode: INSENSITIVE_MODE } },
+                ],
+              },
+            },
+          ],
+        }
+      : {};
+
+    const [total, items] = await Promise.all([
+      prisma.serviceOrder.count({ where }),
+      prisma.serviceOrder.findMany({
+        where,
+        select: {
+          id: true,
+          organizationId: true,
+          clientId: true,
+          sourceQuoteId: true,
+          createdByUserId: true,
+          assignedToUserId: true,
+          status: true,
+          flowType: true,
+          customerName: true,
+          customerPhone: true,
+          notes: true,
+          scheduledFor: true,
+          startedAt: true,
+          completedAt: true,
+          paidAt: true,
+          subtotal: true,
+          total: true,
+          currency: true,
+          source: true,
+          createdAt: true,
+          organization: { select: { name: true } },
+          client: { select: { name: true } },
+          sourceQuote: {
+            select: { id: true, customerName: true, status: true, client: { select: { name: true } } },
+          },
+          createdBy: {
+            select: { firstName: true, lastName: true, email: true },
+          },
+          assignedTo: {
+            select: { firstName: true, lastName: true, email: true },
+          },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    return {
+      items: items.map((item) => ({
+        ...item,
+        organizationName: item.organization.name,
+        clientName: item.client?.name ?? "-",
+        sourceQuoteLabel: item.sourceQuote ? getQuoteDisplayLabel(item.sourceQuote) : "-",
+        createdByName: item.createdBy ? getUserDisplayName(item.createdBy) : "-",
+        assignedToName: item.assignedTo ? getUserDisplayName(item.assignedTo) : "-",
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  if (config.model === "quoteItem") {
+    const where = search
+      ? {
+          OR: [
+            { label: { contains: search, mode: INSENSITIVE_MODE } },
+            { description: { contains: search, mode: INSENSITIVE_MODE } },
+            {
+              quote: {
+                customerName: { contains: search, mode: INSENSITIVE_MODE },
+              },
+            },
+            {
+              quote: {
+                client: {
+                  name: { contains: search, mode: INSENSITIVE_MODE },
+                },
+              },
+            },
+          ],
+        }
+      : {};
+
+    const [total, items] = await Promise.all([
+      prisma.quoteItem.count({ where }),
+      prisma.quoteItem.findMany({
+        where,
+        select: {
+          id: true,
+          quoteId: true,
+          itemType: true,
+          label: true,
+          description: true,
+          quantity: true,
+          unitPrice: true,
+          total: true,
+          sortOrder: true,
+          createdAt: true,
+          quote: {
+            select: {
+              id: true,
+              customerName: true,
+              status: true,
+              client: { select: { name: true } },
+            },
+          },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    return {
+      items: items.map((item) => ({
+        ...item,
+        quoteLabel: getQuoteDisplayLabel(item.quote),
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
+  if (config.model === "serviceOrderItem") {
+    const where = search
+      ? {
+          OR: [
+            { label: { contains: search, mode: INSENSITIVE_MODE } },
+            { description: { contains: search, mode: INSENSITIVE_MODE } },
+            {
+              serviceOrder: {
+                customerName: { contains: search, mode: INSENSITIVE_MODE },
+              },
+            },
+            {
+              serviceOrder: {
+                client: {
+                  name: { contains: search, mode: INSENSITIVE_MODE },
+                },
+              },
+            },
+          ],
+        }
+      : {};
+
+    const [total, items] = await Promise.all([
+      prisma.serviceOrderItem.count({ where }),
+      prisma.serviceOrderItem.findMany({
+        where,
+        select: {
+          id: true,
+          serviceOrderId: true,
+          itemType: true,
+          label: true,
+          description: true,
+          quantity: true,
+          unitPrice: true,
+          total: true,
+          sortOrder: true,
+          createdAt: true,
+          serviceOrder: {
+            select: {
+              id: true,
+              customerName: true,
+              status: true,
+              client: { select: { name: true } },
+            },
+          },
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    return {
+      items: items.map((item) => ({
+        ...item,
+        serviceOrderLabel: getServiceOrderDisplayLabel(item.serviceOrder),
+      })),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  }
+
   if (config.model === "loginCode") {
     const where = search
       ? {
@@ -866,7 +1306,12 @@ export async function createAdminRecord(
         phone: String(data.phone),
         countryCode: String(data.countryCode),
         active: Boolean(data.active ?? true),
-        role: data.role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.EMPLOYEE,
+        role:
+          data.role === UserRole.SUPER_ADMIN
+            ? UserRole.SUPER_ADMIN
+            : data.role === UserRole.SAAS_ADMIN
+              ? UserRole.SAAS_ADMIN
+              : UserRole.STANDARD_USER,
       },
     });
 
@@ -902,9 +1347,19 @@ export async function createAdminRecord(
         userId: String(data.userId),
         organizationId: String(data.organizationId),
         role:
-          data.role === UserOrganizationRole.ADMIN
-            ? UserOrganizationRole.ADMIN
-            : UserOrganizationRole.MEMBER,
+          data.role === UserOrganizationRole.ORG_ADMIN
+            ? UserOrganizationRole.ORG_ADMIN
+            : UserOrganizationRole.EMPLOYEE,
+        permissionProfile:
+          data.permissionProfile === UserOrganizationPermissionProfile.FRONT_DESK
+            ? UserOrganizationPermissionProfile.FRONT_DESK
+            : data.permissionProfile === UserOrganizationPermissionProfile.SALES_ONLY
+              ? UserOrganizationPermissionProfile.SALES_ONLY
+              : data.permissionProfile === UserOrganizationPermissionProfile.OPERATOR
+                ? UserOrganizationPermissionProfile.OPERATOR
+                : data.permissionProfile === UserOrganizationPermissionProfile.VIEW_ONLY
+                  ? UserOrganizationPermissionProfile.VIEW_ONLY
+                  : UserOrganizationPermissionProfile.FULL_SERVICE,
       },
     });
   }
@@ -938,7 +1393,12 @@ export async function updateAdminRecord(
         phone: String(data.phone),
         countryCode: String(data.countryCode),
         active: Boolean(data.active ?? true),
-        role: data.role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.EMPLOYEE,
+        role:
+          data.role === UserRole.SUPER_ADMIN
+            ? UserRole.SUPER_ADMIN
+            : data.role === UserRole.SAAS_ADMIN
+              ? UserRole.SAAS_ADMIN
+              : UserRole.STANDARD_USER,
       },
     });
 
@@ -970,9 +1430,19 @@ export async function updateAdminRecord(
         userId: String(data.userId),
         organizationId: String(data.organizationId),
         role:
-          data.role === UserOrganizationRole.ADMIN
-            ? UserOrganizationRole.ADMIN
-            : UserOrganizationRole.MEMBER,
+          data.role === UserOrganizationRole.ORG_ADMIN
+            ? UserOrganizationRole.ORG_ADMIN
+            : UserOrganizationRole.EMPLOYEE,
+        permissionProfile:
+          data.permissionProfile === UserOrganizationPermissionProfile.FRONT_DESK
+            ? UserOrganizationPermissionProfile.FRONT_DESK
+            : data.permissionProfile === UserOrganizationPermissionProfile.SALES_ONLY
+              ? UserOrganizationPermissionProfile.SALES_ONLY
+              : data.permissionProfile === UserOrganizationPermissionProfile.OPERATOR
+                ? UserOrganizationPermissionProfile.OPERATOR
+                : data.permissionProfile === UserOrganizationPermissionProfile.VIEW_ONLY
+                  ? UserOrganizationPermissionProfile.VIEW_ONLY
+                  : UserOrganizationPermissionProfile.FULL_SERVICE,
       },
     });
   }
