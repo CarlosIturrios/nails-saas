@@ -16,6 +16,7 @@ import {
   parseNullableToUTC,
   startOfDay,
 } from "@/src/lib/dates";
+import { getServiceOrderRescheduleDeniedMessage } from "@/src/lib/service-order-rules";
 
 export interface CreateServiceOrderItemInput {
   itemType: ServiceOrderItemType;
@@ -438,11 +439,21 @@ export async function updateServiceOrderSchedule(
     },
     select: {
       id: true,
+      status: true,
+      startedAt: true,
+      completedAt: true,
+      paidAt: true,
     },
   });
 
   if (!order) {
     throw new Error("La orden no existe o no pertenece a tu organización");
+  }
+
+  const deniedMessage = getServiceOrderRescheduleDeniedMessage(order);
+
+  if (deniedMessage) {
+    throw new Error(deniedMessage);
   }
 
   const nextScheduledFor = parseNullableToUTC(

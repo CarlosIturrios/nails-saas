@@ -25,7 +25,15 @@ import {
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import { downloadQuoteImage } from "@/src/components/ui/downloadQuoteImage";
 import Toast from "@/src/components/ui/Toast";
-import { formatDate } from "@/src/lib/dates";
+import {
+  formatDate,
+  serializeDateTimeForApi,
+  toDatetimeLocalValue,
+} from "@/src/lib/dates";
+import {
+  canRescheduleServiceOrderStatus,
+  getServiceOrderRescheduleBlockedReason,
+} from "@/src/lib/service-order-rules";
 
 interface ServiceOrdersBoardProps {
   locale: string;
@@ -114,6 +122,14 @@ function formatDateLabel(value: string | null, locale: string, timeZone: string)
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function toDatetimeLocal(value: string | null, timeZone: string) {
+  if (!value) {
+    return "";
+  }
+
+  return toDatetimeLocalValue(value, timeZone);
 }
 
 function getNextStatus(status: ServiceOrderStatus) {
@@ -274,6 +290,9 @@ export function ServiceOrdersBoard({
   const router = useRouter();
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState("all");
+  const [scheduleValues, setScheduleValues] = useState<Record<string, string>>(
+    () => Object.fromEntries(orders.map((order) => [order.id, toDatetimeLocal(order.scheduledFor, timeZone)]))
+  );
   const [assignmentValues, setAssignmentValues] = useState<Record<string, string>>(
     () => Object.fromEntries(orders.map((order) => [order.id, order.assignedToUserId ?? ""]))
   );
@@ -282,10 +301,15 @@ export function ServiceOrdersBoard({
     type: "success" | "error" | "info";
   } | null>(null);
   useEffect(() => {
+    setScheduleValues(
+      Object.fromEntries(
+        orders.map((order) => [order.id, toDatetimeLocal(order.scheduledFor, timeZone)])
+      )
+    );
     setAssignmentValues(
       Object.fromEntries(orders.map((order) => [order.id, order.assignedToUserId ?? ""]))
     );
-  }, [orders]);
+  }, [orders, timeZone]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const filteredOrders = useMemo(() => {
@@ -412,6 +436,45 @@ export function ServiceOrdersBoard({
 
       setToast({
         message: "Responsable actualizado correctamente",
+        type: "success",
+      });
+      router.refresh();
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : "Error inesperado",
+        type: "error",
+      });
+    } finally {
+      setPendingOrderId(null);
+    }
+  }
+
+  async function updateSchedule(orderId: string) {
+    setPendingOrderId(orderId);
+
+    try {
+      const response = await fetch(`/api/service-orders/${orderId}/schedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduledFor: serializeDateTimeForApi(scheduleValues[orderId] || null, timeZone),
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          getApiErrorMessage({
+            status: response.status,
+            payloadError: payload.error,
+            fallback: "No se pudo reprogramar la orden",
+            permissionAction: "schedule_order",
+          })
+        );
+      }
+
+      setToast({
+        message: "Horario actualizado correctamente",
         type: "success",
       });
       router.refresh();
@@ -584,6 +647,9 @@ export function ServiceOrdersBoard({
           const nextActionLabel = getNextActionLabel(order.status);
           const canMoveOrder =
             nextStatus === ServiceOrderStatus.PAID ? canChargeOrders : canProgressOrders;
+          const canReschedule = canRescheduleServiceOrderStatus(order.status);
+          const rescheduleBlockedReason = getServiceOrderRescheduleBlockedReason(order.status);
+          const hasScheduleValue = Boolean(scheduleValues[order.id]?.trim());
 
           return (
             <article key={order.id} className="admin-surface rounded-[28px] p-6 sm:p-8">
@@ -750,37 +816,81 @@ export function ServiceOrdersBoard({
                 />
               </div>
 
-              <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,260px)_auto] lg:items-end">
+              <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,280px)_minmax(0,260px)_minmax(220px,1fr)] lg:items-end">
                 {canScheduleOrders ? (
-                  <label className="space-y-2">
-                    <span className="admin-label block text-sm font-medium">Responsable</span>
-                    <select
-                      value={assignmentValues[order.id] ?? ""}
-                      onChange={(event) =>
-                        setAssignmentValues((current) => ({
-                          ...current,
-                          [order.id]: event.target.value,
-                        }))
-                      }
-                      className="admin-input px-4 py-3 text-sm"
-                    >
-                      <option value="">Sin asignar</option>
-                      {assignableUsers.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name || user.email}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <>
+                    <label className="space-y-2">
+                      <span className="admin-label block text-sm font-medium">
+                        {order.scheduledFor ? "Reprogramar para" : "Agendar para"}
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={scheduleValues[order.id] ?? ""}
+                        onChange={(event) =>
+                          setScheduleValues((current) => ({
+                            ...current,
+                            [order.id]: event.target.value,
+                          }))
+                        }
+                        disabled={!canReschedule || pendingOrderId === order.id}
+                        className="admin-input w-full px-4 py-3 text-sm"
+                      />
+                    </label>
+                    <label className="space-y-2">
+                      <span className="admin-label block text-sm font-medium">Responsable</span>
+                      <select
+                        value={assignmentValues[order.id] ?? ""}
+                        onChange={(event) =>
+                          setAssignmentValues((current) => ({
+                            ...current,
+                            [order.id]: event.target.value,
+                          }))
+                        }
+                        className="admin-input px-4 py-3 text-sm"
+                      >
+                        <option value="">Sin asignar</option>
+                        {assignableUsers.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.name || user.email}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => updateSchedule(order.id)}
+                        disabled={
+                          pendingOrderId === order.id || !canReschedule || !hasScheduleValue
+                        }
+                        className="admin-secondary w-full px-5 py-3 text-sm font-semibold disabled:opacity-60"
+                      >
+                        {pendingOrderId === order.id
+                          ? "Guardando..."
+                          : order.scheduledFor
+                            ? "Reprogramar"
+                            : "Pasar a agenda"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateAssignment(order.id)}
+                        disabled={pendingOrderId === order.id}
+                        className="admin-secondary w-full px-5 py-3 text-sm font-semibold disabled:opacity-60"
+                      >
+                        {pendingOrderId === order.id ? "Guardando..." : "Guardar responsable"}
+                      </button>
+                      <div className="rounded-[24px] border border-[#efe6d8] bg-[#fffdfa] px-4 py-4 text-sm leading-6 text-slate-600">
+                        {canReschedule
+                          ? "Solo se pueden reprogramar órdenes que todavía no empiezan."
+                          : rescheduleBlockedReason}
+                      </div>
+                    </div>
+                  </>
                 ) : (
-                  <div className="rounded-2xl border border-[#efe6d8] bg-[#fffdfa] px-4 py-3 text-sm leading-6 text-slate-600">
-                    Tu perfil no puede cambiar responsables.
+                  <div className="rounded-2xl border border-[#efe6d8] bg-[#fffdfa] px-4 py-3 text-sm leading-6 text-slate-600 lg:col-span-3">
+                    Tu perfil no puede cambiar horario ni responsable.
                   </div>
                 )}
-
-                <div className="rounded-[24px] border border-[#efe6d8] bg-[#fffdfa] px-4 py-4 text-sm leading-6 text-slate-600">
-                  Usa el selector solo cuando realmente necesites reasignar. El resto de la operación ya queda disponible arriba.
-                </div>
               </div>
             </article>
           );

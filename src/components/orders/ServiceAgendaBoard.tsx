@@ -29,6 +29,10 @@ import {
   serializeDateTimeForApi,
   toDatetimeLocalValue,
 } from "@/src/lib/dates";
+import {
+  canRescheduleServiceOrderStatus,
+  getServiceOrderRescheduleBlockedReason,
+} from "@/src/lib/service-order-rules";
 
 interface ServiceAgendaBoardProps {
   locale: string;
@@ -727,6 +731,9 @@ export function ServiceAgendaBoard({
     const canMoveOrder =
       nextStatus === ServiceOrderStatus.PAID ? canChargeOrders : canProgressOrders;
     const hasDetails = expandedOrderIds[order.id];
+    const canReschedule = canRescheduleServiceOrderStatus(order.status);
+    const rescheduleBlockedReason = getServiceOrderRescheduleBlockedReason(order.status);
+    const hasScheduleValue = Boolean(scheduleValues[order.id]?.trim());
 
     return (
       <article key={order.id} className="admin-surface rounded-[28px] p-6 sm:p-8">
@@ -874,7 +881,7 @@ export function ServiceAgendaBoard({
                       Ajustes rápidos
                     </p>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Reagenda o asigna responsable sin salir de esta tarjeta.
+                      Reprograma órdenes no iniciadas o ajusta responsable sin salir de esta tarjeta.
                     </p>
                   </div>
                 </div>
@@ -894,6 +901,7 @@ export function ServiceAgendaBoard({
                           [order.id]: event.target.value,
                         }))
                       }
+                      disabled={!canReschedule || pendingOrderId === order.id}
                       className="admin-input w-full px-4 py-3 text-sm"
                     />
                   </label>
@@ -921,13 +929,15 @@ export function ServiceAgendaBoard({
                     <button
                       type="button"
                       onClick={() => updateSchedule(order.id)}
-                      disabled={pendingOrderId === order.id}
+                      disabled={
+                        pendingOrderId === order.id || !canReschedule || !hasScheduleValue
+                      }
                       className="admin-secondary w-full px-5 py-3 text-sm font-semibold disabled:opacity-60"
                     >
                       {pendingOrderId === order.id
                         ? "Guardando..."
                         : order.scheduledFor
-                          ? "Guardar horario"
+                          ? "Reprogramar"
                           : "Pasar a agenda"}
                     </button>
                     <button
@@ -940,9 +950,16 @@ export function ServiceAgendaBoard({
                     </button>
                   </div>
                 </div>
-              ) : (
+              ) : null}
+              {!canScheduleOrders ? (
                 <p className="mt-4 text-sm leading-6 text-slate-600">
                   Tu perfil puede mover el trabajo, pero no cambiar horario ni responsable.
+                </p>
+              ) : (
+                <p className="mt-4 text-sm leading-6 text-slate-600">
+                  {canReschedule
+                    ? "Solo se pueden reprogramar órdenes que todavía no empiezan."
+                    : rescheduleBlockedReason}
                 </p>
               )}
             </div>
