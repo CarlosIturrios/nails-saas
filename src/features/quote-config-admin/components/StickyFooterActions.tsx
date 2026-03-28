@@ -17,9 +17,9 @@ export function StickyFooterActions({
 }: StickyFooterActionsProps) {
   return (
     <>
-      <div className="h-52 lg:hidden" />
+      <div className="h-[13rem] sm:h-[14rem] lg:hidden" />
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 lg:pointer-events-auto lg:static lg:px-0 lg:pb-0 lg:pt-0">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 px-4 pb-3 pt-3 lg:pointer-events-auto lg:static lg:px-0 lg:pb-0 lg:pt-0">
         <div className="mx-auto max-w-5xl">
           <div className="pointer-events-auto admin-surface rounded-[24px] border border-[#eadfcb] bg-[rgba(255,253,250,0.96)] p-3 shadow-[0_-10px_28px_rgba(15,23,42,0.08)] backdrop-blur-xl lg:rounded-[28px] lg:p-4 lg:shadow-none">
             {helperText ? (
@@ -29,7 +29,7 @@ export function StickyFooterActions({
             ) : null}
 
             {utilityAction ? (
-              <div className="pb-3">{utilityAction}</div>
+              <div className="pb-3 lg:flex lg:justify-end">{utilityAction}</div>
             ) : null}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">

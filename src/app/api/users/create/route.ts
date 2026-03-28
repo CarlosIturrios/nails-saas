@@ -1,7 +1,11 @@
 // src/app/api/users/create/route.ts
 
 import { NextResponse } from "next/server";
-import { UserOrganizationRole } from "@prisma/client";
+import {
+  UserOrganizationPermissionProfile,
+  UserOrganizationRole,
+  UserRole,
+} from "@prisma/client";
 import { prisma } from "@/src/lib/db";
 import { requireAdminApiUser } from "@/src/admin/lib/auth";
 
@@ -10,9 +14,19 @@ export async function POST(req: Request) {
     const currentUser = await requireAdminApiUser();
     const body = await req.json();
     const membershipRole =
-      body.role === "ADMIN"
-        ? UserOrganizationRole.ADMIN
-        : UserOrganizationRole.MEMBER;
+      body.membershipRole === UserOrganizationRole.ORG_ADMIN
+        ? UserOrganizationRole.ORG_ADMIN
+        : UserOrganizationRole.EMPLOYEE;
+    const permissionProfile =
+      body.permissionProfile === UserOrganizationPermissionProfile.FRONT_DESK
+        ? UserOrganizationPermissionProfile.FRONT_DESK
+        : body.permissionProfile === UserOrganizationPermissionProfile.SALES_ONLY
+          ? UserOrganizationPermissionProfile.SALES_ONLY
+          : body.permissionProfile === UserOrganizationPermissionProfile.OPERATOR
+            ? UserOrganizationPermissionProfile.OPERATOR
+            : body.permissionProfile === UserOrganizationPermissionProfile.VIEW_ONLY
+              ? UserOrganizationPermissionProfile.VIEW_ONLY
+              : UserOrganizationPermissionProfile.FULL_SERVICE;
 
     const user = await prisma.user.create({
       data: {
@@ -21,12 +35,18 @@ export async function POST(req: Request) {
         email: body.email,
         phone: body.phone,
         countryCode: body.countryCode,
-        role: body.role || "EMPLOYEE",
+        role:
+          body.role === UserRole.SUPER_ADMIN
+            ? UserRole.SUPER_ADMIN
+            : body.role === UserRole.SAAS_ADMIN
+              ? UserRole.SAAS_ADMIN
+              : UserRole.STANDARD_USER,
         memberships: currentUser.currentOrganizationId
           ? {
               create: {
                 organizationId: currentUser.currentOrganizationId,
                 role: membershipRole,
+                permissionProfile,
               },
             }
           : undefined,

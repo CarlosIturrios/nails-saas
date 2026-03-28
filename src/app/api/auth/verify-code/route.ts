@@ -4,7 +4,7 @@ import { verifyLoginCode } from "@/src/lib/services/auth.service";
 import {
   applyOrganizationCookies,
 } from "@/src/lib/organizations/context";
-import { AUTH_COOKIE_NAME } from "@/src/lib/auth/session";
+import { AUTH_COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from "@/src/lib/auth/session";
 
 export async function POST(req: Request) {
   try {
@@ -14,6 +14,7 @@ export async function POST(req: Request) {
     const res = NextResponse.json({ ok: true });
     res.cookies.set(AUTH_COOKIE_NAME, loginResult.token, {
       httpOnly: true,
+      maxAge: SESSION_MAX_AGE_SECONDS,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",

@@ -7,7 +7,8 @@ import {
   decorationLabels,
   decorationPrices,
   pricing,
-} from "@/src/features/quote-calculator/data/pricing";
+} from "@/src/features/quote-calculator-v2/lib/pricing";
+import { buildExtraMetadata } from "@/src/features/quote-calculator-v2/lib/extra-display";
 import { OrganizationQuoteConfigInput } from "@/src/features/quote-calculator-v2/lib/types";
 
 function stripLeadingEmoji(value: string) {
@@ -48,9 +49,12 @@ export function buildDefaultQuoteConfigInput(
       pricingType: ExtraPricingType.PER_UNIT,
       includedQuantity: 2,
       sortOrder: 0,
-      metadata: {
+      metadata: buildExtraMetadata({
         sourceKey: "extra_tones",
-      },
+        displayGroup: "tones",
+        captureMode: "individual",
+        unitLabel: "tono",
+      }),
     },
     ...Object.entries(decorationPrices).map(([key, price], index) => ({
       name: stripLeadingEmoji(decorationLabels[key as keyof typeof decorationLabels]),
@@ -59,9 +63,12 @@ export function buildDefaultQuoteConfigInput(
       pricingType: ExtraPricingType.PER_UNIT,
       includedQuantity: 0,
       sortOrder: index + 1,
-      metadata: {
+      metadata: buildExtraMetadata({
         sourceKey: key,
-      },
+        displayGroup: "decorations",
+        captureMode: "individual",
+        unitLabel: "detalle",
+      }),
     })),
   ];
 
@@ -87,8 +94,8 @@ export function buildDefaultQuoteConfigInput(
     },
     ui: {
       titles: {
-        calculatorTitle: "Calculadora de cotizaciones",
-        calculatorSubtitle: "Configura servicios y extras según tu negocio.",
+        calculatorTitle: "Captura principal",
+        calculatorSubtitle: "Configura servicios, extras y el resumen que verá tu cliente.",
         servicesTitle: "Servicios",
         extrasTitle: "Extras",
         summaryTitle: "Resumen",
@@ -97,12 +104,13 @@ export function buildDefaultQuoteConfigInput(
         servicesHelper: "Selecciona una o varias categorías y luego marca las opciones necesarias.",
         extrasHelper: "Ajusta cantidades y cargos adicionales desde este bloque.",
         emptySummary: "Selecciona al menos un servicio para comenzar.",
-        downloadHelper: "Descarga una imagen con el resumen de la cotización.",
+        downloadHelper: "Descarga una imagen con el resumen visible para el cliente.",
+        captureWorkMode: "hybrid",
       },
       labels: {
         total: "Total",
-        reset: "Nueva cotización",
-        download: "Descargar cotización",
+        reset: "Nueva captura",
+        download: "Descargar resumen",
         quantity: "Cantidad",
       },
     },

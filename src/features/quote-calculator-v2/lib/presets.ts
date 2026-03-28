@@ -1,5 +1,6 @@
 import { ExtraPricingType } from "@prisma/client";
 
+import { buildExtraMetadata } from "@/src/features/quote-calculator-v2/lib/extra-display";
 import { OrganizationQuoteConfigInput } from "@/src/features/quote-calculator-v2/lib/types";
 import { buildDefaultQuoteConfigInput } from "@/src/features/quote-calculator-v2/lib/default-config";
 
@@ -7,6 +8,18 @@ export const QUOTE_CONFIG_PRESETS = {
   none: {
     label: "Sin demo",
     description: "Empieza con una configuración vacía y personalízala desde cero.",
+  },
+  pos_classic_demo: {
+    label: "Demo POS clásico",
+    description: "Mismo flujo de venta rápida con layout tradicional de caja y ticket fijo.",
+  },
+  pos_compact_demo: {
+    label: "Demo POS compacto",
+    description: "Versión más densa para capturar muchas ventas al día sin perder velocidad.",
+  },
+  pos_touch_demo: {
+    label: "Demo POS touch",
+    description: "Preset táctil con botones grandes para tablet, mostrador y operación touch.",
   },
   manicurist_demo: {
     label: "Demo manicurista",
@@ -64,6 +77,10 @@ export const QUOTE_CONFIG_PRESETS = {
     label: "Demo electricista",
     description: "Carga instalaciones, diagnósticos, mantenimiento y materiales eléctricos.",
   },
+  fast_food_demo: {
+    label: "Demo comida rápida",
+    description: "Ideal para mostrador, combos, toppings y pedidos rápidos.",
+  },
 } as const;
 
 export type QuoteConfigPresetKey = keyof typeof QUOTE_CONFIG_PRESETS;
@@ -71,22 +88,23 @@ export type QuoteConfigPresetKey = keyof typeof QUOTE_CONFIG_PRESETS;
 function buildBaseUiConfig() {
   return {
     titles: {
-      calculatorTitle: "Calculadora de cotizaciones",
-      calculatorSubtitle: "Configura servicios y extras según tu negocio.",
+      calculatorTitle: "Captura principal",
+      calculatorSubtitle: "Configura servicios, extras y el resumen que verá tu cliente.",
       servicesTitle: "Servicios",
       extrasTitle: "Extras",
       summaryTitle: "Resumen",
     },
     texts: {
-      servicesHelper: "Agrega categorías y opciones para empezar a cotizar.",
+      servicesHelper: "Agrega categorías y opciones para empezar a capturar.",
       extrasHelper: "Agrega extras si necesitas cargos adicionales.",
       emptySummary: "Selecciona al menos un servicio para comenzar.",
-      downloadHelper: "Descarga una imagen con el resumen de la cotización.",
+      downloadHelper: "Descarga una imagen con el resumen visible para el cliente.",
+      captureWorkMode: "hybrid",
     },
     labels: {
       total: "Total",
-      reset: "Nueva cotización",
-      download: "Descargar cotización",
+      reset: "Nueva captura",
+      download: "Descargar resumen",
       quantity: "Cantidad",
     },
   };
@@ -107,15 +125,16 @@ function buildIndustryUiConfig(
       summaryTitle: "Resumen",
     },
     texts: {
-      servicesHelper: "Selecciona los servicios que quieres incluir en esta cotización.",
-      extrasHelper: "Agrega conceptos adicionales si necesitas ajustar el presupuesto.",
+      servicesHelper: "Selecciona los servicios que quieres incluir en esta captura.",
+      extrasHelper: "Agrega conceptos adicionales si necesitas ajustar el total.",
       emptySummary: "Selecciona al menos un servicio para comenzar.",
-      downloadHelper: "Descarga una imagen con el resumen de la cotización.",
+      downloadHelper: "Descarga una imagen con el resumen visible para el cliente.",
+      captureWorkMode: "hybrid",
     },
     labels: {
       total: "Total",
-      reset: "Nueva cotización",
-      download: "Descargar cotización",
+      reset: "Nueva captura",
+      download: "Descargar resumen",
       quantity: "Cantidad",
     },
   };
@@ -209,7 +228,11 @@ function buildNailSalonQuoteConfigInput(
         pricingType: ExtraPricingType.PER_UNIT,
         includedQuantity: 0,
         sortOrder: 0,
-        metadata: null,
+        metadata: buildExtraMetadata({
+          displayGroup: "decorations",
+          captureMode: "individual",
+          unitLabel: "uña",
+        }),
       },
       {
         name: "Pedrería",
@@ -218,7 +241,11 @@ function buildNailSalonQuoteConfigInput(
         pricingType: ExtraPricingType.PER_UNIT,
         includedQuantity: 0,
         sortOrder: 1,
-        metadata: null,
+        metadata: buildExtraMetadata({
+          displayGroup: "decorations",
+          captureMode: "individual",
+          unitLabel: "aplicación",
+        }),
       },
       {
         name: "Reparación de uña",
@@ -227,7 +254,11 @@ function buildNailSalonQuoteConfigInput(
         pricingType: ExtraPricingType.PER_UNIT,
         includedQuantity: 0,
         sortOrder: 2,
-        metadata: null,
+        metadata: buildExtraMetadata({
+          displayGroup: "general",
+          captureMode: "individual",
+          unitLabel: "uña",
+        }),
       },
     ],
     rules: {
@@ -1409,8 +1440,171 @@ function buildElectricianQuoteConfigInput(
   };
 }
 
+function buildFastFoodQuoteConfigInput(
+  organizationId: string,
+  organizationName: string
+): OrganizationQuoteConfigInput {
+  return {
+    organizationId,
+    branding: {
+      businessName: organizationName,
+      businessType: "fast_food",
+      logoUrl: "",
+      quoteTemplate: "quick_bites",
+      primaryColor: "#b93818",
+      secondaryColor: "#fff5ea",
+      currency: "MXN",
+      language: "es-MX",
+    },
+    categories: [
+      {
+        name: "Hamburguesas",
+        description: "Lo más pedido del mostrador.",
+        multiSelect: false,
+        sortOrder: 0,
+        metadata: null,
+        options: [
+          { name: "Hamburguesa clásica", description: "", price: 95, sortOrder: 0, metadata: null },
+          { name: "Hamburguesa doble", description: "", price: 135, sortOrder: 1, metadata: null },
+          { name: "Hamburguesa con tocino", description: "", price: 145, sortOrder: 2, metadata: null },
+        ],
+      },
+      {
+        name: "Combos",
+        description: "Listos para cobrar en un toque.",
+        multiSelect: true,
+        sortOrder: 1,
+        metadata: null,
+        options: [
+          { name: "Papas chicas", description: "", price: 35, sortOrder: 0, metadata: null },
+          { name: "Papas grandes", description: "", price: 55, sortOrder: 1, metadata: null },
+          { name: "Refresco", description: "", price: 30, sortOrder: 2, metadata: null },
+        ],
+      },
+      {
+        name: "Extras de cocina",
+        description: "Complementos que se agregan con frecuencia.",
+        multiSelect: true,
+        sortOrder: 2,
+        metadata: null,
+        options: [
+          { name: "Carne extra", description: "", price: 40, sortOrder: 0, metadata: null },
+          { name: "Queso extra", description: "", price: 18, sortOrder: 1, metadata: null },
+          { name: "Aderezo especial", description: "", price: 12, sortOrder: 2, metadata: null },
+        ],
+      },
+    ],
+    extras: [
+      {
+        name: "Topping extra",
+        description: "Ingredientes extra por unidad.",
+        price: 10,
+        pricingType: ExtraPricingType.PER_UNIT,
+        includedQuantity: 0,
+        sortOrder: 0,
+        metadata: buildExtraMetadata({
+          displayGroup: "general",
+          captureMode: "individual",
+          unitLabel: "topping",
+          sectionLabel: "Toppings",
+          sectionHelper: "Agrega ingredientes extra sin escribir de más.",
+        }),
+      },
+      {
+        name: "Envío o servicio",
+        description: "Cargo fijo cuando aplica.",
+        price: 25,
+        pricingType: ExtraPricingType.FIXED,
+        includedQuantity: 0,
+        sortOrder: 1,
+        metadata: null,
+      },
+    ],
+    rules: {
+      maxSelectedCategories: null,
+      maxQuantityPerExtra: 10,
+      maxTotalSelections: null,
+      extraPricingRules: null,
+    },
+    ui: {
+      ...buildIndustryUiConfig(
+        "Punto de venta rápido",
+        "Elige productos, agrega extras y cobra en segundos.",
+        "Lo que vendes",
+        "Extras rápidos"
+      ),
+      texts: {
+        ...buildIndustryUiConfig(
+          "Punto de venta rápido",
+          "Elige productos, agrega extras y cobra en segundos.",
+          "Lo que vendes",
+          "Extras rápidos"
+        ).texts,
+        captureWorkMode: "walk_in",
+      },
+    },
+  };
+}
+
+function buildPosTemplateDemoQuoteConfigInput(
+  organizationId: string,
+  organizationName: string,
+  template: "pos_classic" | "pos_compact" | "pos_touch"
+): OrganizationQuoteConfigInput {
+  const baseConfig = buildFastFoodQuoteConfigInput(organizationId, organizationName);
+  const templateOverrides = {
+    pos_classic: {
+      businessName: `${organizationName} POS`,
+      primaryColor: "#0f172a",
+      secondaryColor: "#eef4ff",
+      calculatorTitle: "POS clásico",
+      calculatorSubtitle: "Captura y cobra con un layout de caja tradicional y ticket siempre visible.",
+    },
+    pos_compact: {
+      businessName: `${organizationName} POS Pro`,
+      primaryColor: "#1e293b",
+      secondaryColor: "#eef2f7",
+      calculatorTitle: "POS compacto",
+      calculatorSubtitle: "Más densidad visual para equipos que viven capturando ventas rápidas.",
+    },
+    pos_touch: {
+      businessName: `${organizationName} POS Touch`,
+      primaryColor: "#b93818",
+      secondaryColor: "#fff3e5",
+      calculatorTitle: "POS touch",
+      calculatorSubtitle: "Botones grandes y cómodos para tablet, mostrador y pantallas táctiles.",
+    },
+  }[template];
+
+  return {
+    ...baseConfig,
+    branding: {
+      ...baseConfig.branding,
+      businessName: templateOverrides.businessName,
+      quoteTemplate: template,
+      primaryColor: templateOverrides.primaryColor,
+      secondaryColor: templateOverrides.secondaryColor,
+    },
+    ui: {
+      ...baseConfig.ui,
+      titles: {
+        ...baseConfig.ui.titles,
+        calculatorTitle: templateOverrides.calculatorTitle,
+        calculatorSubtitle: templateOverrides.calculatorSubtitle,
+      },
+      texts: {
+        ...baseConfig.ui.texts,
+        captureWorkMode: "walk_in",
+      },
+    },
+  };
+}
+
 export function normalizeQuoteConfigPreset(value: unknown): QuoteConfigPresetKey {
   if (
+    value === "pos_classic_demo" ||
+    value === "pos_compact_demo" ||
+    value === "pos_touch_demo" ||
     value === "manicurist_demo" ||
     value === "nail_salon_demo" ||
     value === "mechanic_shop_demo" ||
@@ -1424,7 +1618,8 @@ export function normalizeQuoteConfigPreset(value: unknown): QuoteConfigPresetKey
     value === "car_wash_demo" ||
     value === "estetica_demo" ||
     value === "carpinteria_demo" ||
-    value === "electricista_demo"
+    value === "electricista_demo" ||
+    value === "fast_food_demo"
   ) {
     return value;
   }
@@ -1438,6 +1633,24 @@ export function buildQuoteConfigInputFromPreset(
   organizationName: string
 ) {
   switch (preset) {
+    case "pos_classic_demo":
+      return buildPosTemplateDemoQuoteConfigInput(
+        organizationId,
+        organizationName,
+        "pos_classic"
+      );
+    case "pos_compact_demo":
+      return buildPosTemplateDemoQuoteConfigInput(
+        organizationId,
+        organizationName,
+        "pos_compact"
+      );
+    case "pos_touch_demo":
+      return buildPosTemplateDemoQuoteConfigInput(
+        organizationId,
+        organizationName,
+        "pos_touch"
+      );
     case "manicurist_demo":
       return buildDefaultQuoteConfigInput(organizationId, organizationName);
     case "nail_salon_demo":
@@ -1466,6 +1679,8 @@ export function buildQuoteConfigInputFromPreset(
       return buildCarpentryQuoteConfigInput(organizationId, organizationName);
     case "electricista_demo":
       return buildElectricianQuoteConfigInput(organizationId, organizationName);
+    case "fast_food_demo":
+      return buildFastFoodQuoteConfigInput(organizationId, organizationName);
     default:
       return buildEmptyQuoteConfigInput(organizationId, organizationName);
   }

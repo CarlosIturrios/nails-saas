@@ -59,6 +59,13 @@ export default function DynamicForm({
         onSubmit();
       }}
     >
+      <div className="rounded-[24px] border border-[#eadfcb] bg-[#fffaf4] p-4">
+        <p className="text-sm font-semibold text-slate-900">Antes de guardar</p>
+        <p className="admin-muted mt-2 text-sm leading-6">
+          Completa los datos que quieras registrar. Los campos marcados con * son obligatorios.
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {fields.map((field) => {
           const value = values[field.name];
@@ -90,7 +97,7 @@ export default function DynamicForm({
                   onChange={(event) => onChange(field.name, event.target.value)}
                   className="admin-input px-4 py-3 text-sm"
                 >
-                  <option value="">Selecciona una opcion</option>
+                  <option value="">Selecciona una opción</option>
                   {options.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}

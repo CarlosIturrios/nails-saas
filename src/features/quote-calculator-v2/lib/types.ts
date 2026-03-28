@@ -5,6 +5,22 @@ export const QUOTE_TEMPLATE_OPTIONS = {
     label: "Moderno",
     description: "Diseño limpio y flexible para cualquier giro.",
   },
+  retail_express: {
+    label: "Retail express",
+    description: "Pensado para cobro rápido, lectura inmediata y operación tipo caja.",
+  },
+  quick_bites: {
+    label: "Quick bites",
+    description: "Ideal para comida rápida, combos, extras y atención de mostrador.",
+  },
+  social_cards: {
+    label: "Social cards",
+    description: "Visual más cercano a apps de consumo, con bloques grandes y directos.",
+  },
+  ticket_board: {
+    label: "Ticket board",
+    description: "Más parecido a un tablero de tickets para talleres y servicios intensivos.",
+  },
   beauty_soft: {
     label: "Belleza suave",
     description: "Ideal para uñas, estética y negocios de imagen personal.",
@@ -20,6 +36,18 @@ export const QUOTE_TEMPLATE_OPTIONS = {
   clinical_clean: {
     label: "Clínico limpio",
     description: "Funciona muy bien para dentistas, veterinarias y servicios de salud.",
+  },
+  pos_classic: {
+    label: "POS clásico",
+    description: "Layout tradicional de caja con catálogo a la izquierda y ticket fijo.",
+  },
+  pos_compact: {
+    label: "POS compacto",
+    description: "Más denso y veloz para usuarios que capturan muchas ventas al día.",
+  },
+  pos_touch: {
+    label: "POS touch",
+    description: "Botones grandes y cómodos para tabletas, mostrador y pantallas táctiles.",
   },
   workshop_pro: {
     label: "Taller profesional",

@@ -4,17 +4,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { verifyJwtEdge } from "@/src/lib/auth/jwt-edge";
-import {
-  ACTIVE_ORGANIZATION_COOKIE,
-  AUTH_COOKIE_NAME,
-  ORGANIZATION_STATE_COOKIE,
-} from "@/src/lib/auth/session";
+import { AUTH_COOKIE_NAME } from "@/src/lib/auth/session";
 
 export async function proxy(req: NextRequest) {
   const token = req.cookies.get(AUTH_COOKIE_NAME)?.value;
-  const activeOrganizationId = req.cookies.get(ACTIVE_ORGANIZATION_COOKIE)?.value;
-  const organizationState = req.cookies.get(ORGANIZATION_STATE_COOKIE)?.value;
-  const pathname = req.nextUrl.pathname;
 
   const publicPaths = [
     "/login",
@@ -31,29 +24,7 @@ export async function proxy(req: NextRequest) {
   }
 
   try {
-    const session = await verifyJwtEdge(token);
-    const userRole = session.payload.role;
-
-    if (pathname.startsWith("/select-organization") && organizationState !== "multi") {
-      return NextResponse.redirect(new URL("/home", req.url));
-    }
-
-  const isAdminPath =
-      pathname.startsWith("/admin") ||
-      pathname.startsWith("/api/admin");
-
-    if (isAdminPath && userRole !== "ADMIN") {
-      return NextResponse.redirect(new URL("/home", req.url));
-    }
-
-  const needsActiveOrganization = pathname.startsWith("/cotizaciones");
-
-    if (needsActiveOrganization && !activeOrganizationId) {
-      const destination =
-        organizationState === "multi" ? "/select-organization" : "/home";
-      return NextResponse.redirect(new URL(destination, req.url));
-    }
-
+    await verifyJwtEdge(token);
     return NextResponse.next();
   } catch (err) {
     console.warn("JWT inválido:", err);
@@ -69,7 +40,17 @@ export const config = {
     "/organization-admin/:path*",
     "/api/organization-admin/:path*",
     "/home/:path*",
+    "/capturar/:path*",
+    "/pendientes/:path*",
+    "/agenda/:path*",
+    "/mas/:path*",
+    "/clientes/:path*",
+    "/propuestas/:path*",
+    "/ordenes/:path*",
+    "/caja/:path*",
+    "/tablero/:path*",
     "/select-organization/:path*",
+    "/v2/:path*",
     "/",
   ],
 };

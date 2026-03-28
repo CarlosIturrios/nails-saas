@@ -1,80 +1,113 @@
 "use client";
 
-import html2canvas from "html2canvas";
-import { useMemo, useRef, useState } from "react";
+import {
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+} from "lucide-react";
+import {
+  QuoteItemType,
+  ServiceOrderFlowType,
+  ServiceOrderItemType,
+  ServiceOrderStatus,
+} from "@prisma/client";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { AdminLogoutButton } from "@/src/admin/components/AdminLogoutButton";
+import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import Toast from "@/src/components/ui/Toast";
+import { downloadQuoteImage } from "@/src/components/ui/downloadQuoteImage";
+import { CaptureCatalogSection } from "@/src/features/quote-calculator-v2/components/CaptureCatalogSection";
+import { CaptureDetailsStep } from "@/src/features/quote-calculator-v2/components/CaptureDetailsStep";
+import { CaptureExperienceHeader } from "@/src/features/quote-calculator-v2/components/CaptureExperienceHeader";
+import { CaptureExtrasSection } from "@/src/features/quote-calculator-v2/components/CaptureExtrasSection";
+import { CaptureIntentLauncher } from "@/src/features/quote-calculator-v2/components/CaptureIntentLauncher";
+import { CaptureManualAdjustmentsSection } from "@/src/features/quote-calculator-v2/components/CaptureManualAdjustmentsSection";
+import { CaptureMobileStickyBar } from "@/src/features/quote-calculator-v2/components/CaptureMobileStickyBar";
+import { CaptureSaveStep } from "@/src/features/quote-calculator-v2/components/CaptureSaveStep";
+import { CaptureSummaryPanel } from "@/src/features/quote-calculator-v2/components/CaptureSummaryPanel";
+import {
+  type CaptureSaveIntentOption,
+  type ClientSearchMatch,
+  type ManualAdjustment,
+  type QuoteCalculatorTheme,
+  type SaveIntent,
+} from "@/src/features/quote-calculator-v2/components/QuoteCalculatorV2.shared";
+import {
+  formatExtraUnits,
+  getBillableExtraQuantity,
+  getExtraCaptureMode,
+  getExtraDisplayGroup,
+  getExtraLiveAmount,
+  getExtraUnitLabel,
+} from "@/src/features/quote-calculator-v2/lib/extra-display";
+import {
+  getAvailableCaptureIntents,
+  getCaptureWorkModeFromConfig,
+  getDefaultCaptureIntent,
+  type CaptureIntentMode,
+} from "@/src/features/quote-calculator-v2/lib/capture-flow";
 import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo";
 import { OrganizationQuoteConfigView } from "@/src/features/quote-calculator-v2/lib/types";
+import type { IndustryPresentation } from "@/src/features/v2/presentation";
 
 interface QuoteCalculatorV2Props {
   config: OrganizationQuoteConfigView;
   organizationName: string;
+  presentation?: IndustryPresentation;
+  assignableUsers?: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
   canUseManualAdjustments?: boolean;
+  canSaveQuotes?: boolean;
+  canSaveOrders?: boolean;
+  canChargeOrders?: boolean;
+  canScheduleOrders?: boolean;
+  demoMode?: boolean;
+  initialContext?: {
+    clientId?: string | null;
+    customerName?: string;
+    customerPhone?: string;
+    intent?: SaveIntent;
+  };
 }
 
-interface ManualAdjustment {
-  id: string;
-  label: string;
-  amount: number;
-}
-
-async function resolveLogoSource(logoUrl: string) {
-  if (!logoUrl) {
-    return "";
-  }
-
-  const normalized = logoUrl.trim();
-
-  if (
-    normalized.startsWith("/") ||
-    normalized.startsWith("data:") ||
-    normalized.startsWith("blob:")
-  ) {
-    return normalized;
-  }
-
-  try {
-    const response = await fetch(normalized);
-
-    if (!response.ok) {
-      return normalized;
-    }
-
-    const blob = await response.blob();
-    return await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : normalized);
-      reader.onerror = () => reject(new Error("No se pudo leer el logo"));
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return normalized;
-  }
-}
-
-async function waitForImageLoad(image: HTMLImageElement) {
-  if (image.complete) {
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    image.onload = () => resolve();
-    image.onerror = () => resolve();
-  });
-}
-
-function formatMoney(value: number, currency: string, language: string) {
-  return new Intl.NumberFormat(language, {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value);
+function createTheme(
+  theme: Omit<
+    QuoteCalculatorTheme,
+    | "ticketBackground"
+    | "ticketBorder"
+    | "ticketMutedBackground"
+    | "ticketAccentBackground"
+    | "ticketAccentText"
+  > &
+    Partial<
+      Pick<
+        QuoteCalculatorTheme,
+        | "ticketBackground"
+        | "ticketBorder"
+        | "ticketMutedBackground"
+        | "ticketAccentBackground"
+        | "ticketAccentText"
+      >
+    >
+): QuoteCalculatorTheme {
+  return {
+    ticketBackground: theme.summaryBackground,
+    ticketBorder: theme.summaryBorder,
+    ticketMutedBackground: theme.panelBackground,
+    ticketAccentBackground: theme.badgeBackground,
+    ticketAccentText: theme.accentText,
+    ...theme,
+  };
 }
 
 const MODERN_TEMPLATE_THEMES = {
-  modern: {
+  modern: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #fffdfa 0%, #fbf7ef 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.94)",
     surfaceBorder: "#eadfcb",
@@ -93,8 +126,93 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#1f2937",
     primaryButton: "#1f2937",
     primaryButtonHover: "#111827",
-  },
-  beauty_soft: {
+  }),
+  retail_express: createTheme({
+    layoutVariant: "stacked",
+    pageBackground: "linear-gradient(180deg, #f9fafb 0%, #eef2f7 100%)",
+    surfaceBackground: "rgba(255, 255, 255, 0.97)",
+    surfaceBorder: "#d7dee8",
+    panelBackground: "#f8fafc",
+    panelBorder: "#d7dee8",
+    badgeBackground: "#edf3ff",
+    badgeBorder: "#c7d7f5",
+    badgeText: "#1d4f91",
+    summaryBackground: "linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%)",
+    summaryBorder: "#d7dee8",
+    optionActiveBackground: "#eef4ff",
+    optionActiveBorder: "#3b82f6",
+    optionInactiveBackground: "#ffffff",
+    optionInactiveBorder: "#d7dee8",
+    optionHoverBorder: "#93c5fd",
+    accentText: "#0f172a",
+    primaryButton: "#0f172a",
+    primaryButtonHover: "#020617",
+  }),
+  quick_bites: createTheme({
+    layoutVariant: "stacked",
+    pageBackground: "linear-gradient(180deg, #fff8f1 0%, #ffe7d1 100%)",
+    surfaceBackground: "rgba(255, 255, 255, 0.97)",
+    surfaceBorder: "#f3c59d",
+    panelBackground: "#fffaf5",
+    panelBorder: "#f3c59d",
+    badgeBackground: "#fff1e5",
+    badgeBorder: "#f7c79d",
+    badgeText: "#b45309",
+    summaryBackground: "linear-gradient(180deg, #fff9f3 0%, #ffffff 100%)",
+    summaryBorder: "#f3c59d",
+    optionActiveBackground: "#fff1e5",
+    optionActiveBorder: "#ea580c",
+    optionInactiveBackground: "#ffffff",
+    optionInactiveBorder: "#f3c59d",
+    optionHoverBorder: "#fb923c",
+    accentText: "#9a3412",
+    primaryButton: "#b93818",
+    primaryButtonHover: "#9f2f13",
+  }),
+  social_cards: createTheme({
+    layoutVariant: "stacked",
+    pageBackground: "linear-gradient(180deg, #f5fbff 0%, #ebf4ff 100%)",
+    surfaceBackground: "rgba(255, 255, 255, 0.97)",
+    surfaceBorder: "#c7daee",
+    panelBackground: "#f8fbff",
+    panelBorder: "#c7daee",
+    badgeBackground: "#e9f3ff",
+    badgeBorder: "#c7daee",
+    badgeText: "#1e3a8a",
+    summaryBackground: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+    summaryBorder: "#c7daee",
+    optionActiveBackground: "#ebf4ff",
+    optionActiveBorder: "#2563eb",
+    optionInactiveBackground: "#ffffff",
+    optionInactiveBorder: "#c7daee",
+    optionHoverBorder: "#60a5fa",
+    accentText: "#1d4ed8",
+    primaryButton: "#2563eb",
+    primaryButtonHover: "#1d4ed8",
+  }),
+  ticket_board: createTheme({
+    layoutVariant: "stacked",
+    pageBackground: "linear-gradient(180deg, #f7f7f6 0%, #eaecf0 100%)",
+    surfaceBackground: "rgba(255, 255, 255, 0.97)",
+    surfaceBorder: "#cfd4dc",
+    panelBackground: "#f8fafc",
+    panelBorder: "#cfd4dc",
+    badgeBackground: "#eef2f7",
+    badgeBorder: "#cfd4dc",
+    badgeText: "#334155",
+    summaryBackground: "linear-gradient(180deg, #ffffff 0%, #f4f6f8 100%)",
+    summaryBorder: "#cfd4dc",
+    optionActiveBackground: "#e2e8f0",
+    optionActiveBorder: "#475569",
+    optionInactiveBackground: "#ffffff",
+    optionInactiveBorder: "#cfd4dc",
+    optionHoverBorder: "#94a3b8",
+    accentText: "#1e293b",
+    primaryButton: "#1e293b",
+    primaryButtonHover: "#0f172a",
+  }),
+  beauty_soft: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #fffafc 0%, #fff3f8 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.96)",
     surfaceBorder: "#efd1df",
@@ -113,8 +231,9 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#8a4d6d",
     primaryButton: "#9d4c73",
     primaryButtonHover: "#8a3f63",
-  },
-  barber_classic: {
+  }),
+  barber_classic: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #fafaf9 0%, #f5f5f4 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.96)",
     surfaceBorder: "#d6d3d1",
@@ -133,8 +252,9 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#292524",
     primaryButton: "#44403c",
     primaryButtonHover: "#292524",
-  },
-  wellness_calm: {
+  }),
+  wellness_calm: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #f8fafc 0%, #f5f3ff 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.95)",
     surfaceBorder: "#ddd6fe",
@@ -153,8 +273,9 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#5b4b8a",
     primaryButton: "#6b5b95",
     primaryButtonHover: "#58497c",
-  },
-  clinical_clean: {
+  }),
+  clinical_clean: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #f7fffd 0%, #ecfeff 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.96)",
     surfaceBorder: "#bfe7e2",
@@ -173,8 +294,87 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#0f766e",
     primaryButton: "#0f766e",
     primaryButtonHover: "#115e59",
-  },
-  workshop_pro: {
+  }),
+  pos_classic: createTheme({
+    layoutVariant: "pos_classic",
+    pageBackground: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+    surfaceBackground: "rgba(255, 255, 255, 0.98)",
+    surfaceBorder: "#d5deec",
+    panelBackground: "#f8fbff",
+    panelBorder: "#d5deec",
+    badgeBackground: "#ecf3ff",
+    badgeBorder: "#c8d8f2",
+    badgeText: "#1e40af",
+    summaryBackground: "linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%)",
+    summaryBorder: "#c8d8f2",
+    optionActiveBackground: "#eaf2ff",
+    optionActiveBorder: "#2563eb",
+    optionInactiveBackground: "#ffffff",
+    optionInactiveBorder: "#d5deec",
+    optionHoverBorder: "#93c5fd",
+    accentText: "#0f172a",
+    primaryButton: "#0f172a",
+    primaryButtonHover: "#020617",
+    ticketBackground: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+    ticketBorder: "#bfd3f1",
+    ticketMutedBackground: "#f3f7fd",
+    ticketAccentBackground: "#dbeafe",
+    ticketAccentText: "#1d4ed8",
+  }),
+  pos_compact: createTheme({
+    layoutVariant: "pos_compact",
+    pageBackground: "linear-gradient(180deg, #f8fafc 0%, #e9eef5 100%)",
+    surfaceBackground: "rgba(255, 255, 255, 0.98)",
+    surfaceBorder: "#d4dae3",
+    panelBackground: "#f8fafc",
+    panelBorder: "#d4dae3",
+    badgeBackground: "#edf1f7",
+    badgeBorder: "#c6cfdb",
+    badgeText: "#334155",
+    summaryBackground: "linear-gradient(180deg, #ffffff 0%, #f4f7fb 100%)",
+    summaryBorder: "#c6cfdb",
+    optionActiveBackground: "#e6edf7",
+    optionActiveBorder: "#475569",
+    optionInactiveBackground: "#ffffff",
+    optionInactiveBorder: "#d4dae3",
+    optionHoverBorder: "#94a3b8",
+    accentText: "#0f172a",
+    primaryButton: "#111827",
+    primaryButtonHover: "#030712",
+    ticketBackground: "linear-gradient(180deg, #ffffff 0%, #f5f7fb 100%)",
+    ticketBorder: "#c6cfdb",
+    ticketMutedBackground: "#eef2f7",
+    ticketAccentBackground: "#e2e8f0",
+    ticketAccentText: "#334155",
+  }),
+  pos_touch: createTheme({
+    layoutVariant: "pos_touch",
+    pageBackground: "linear-gradient(180deg, #fff9f1 0%, #ffe8d4 100%)",
+    surfaceBackground: "rgba(255, 255, 255, 0.98)",
+    surfaceBorder: "#efc8a7",
+    panelBackground: "#fffaf4",
+    panelBorder: "#efc8a7",
+    badgeBackground: "#fff2e5",
+    badgeBorder: "#f7cc9f",
+    badgeText: "#b45309",
+    summaryBackground: "linear-gradient(180deg, #fffaf4 0%, #ffffff 100%)",
+    summaryBorder: "#f1c79b",
+    optionActiveBackground: "#fff0e0",
+    optionActiveBorder: "#ea580c",
+    optionInactiveBackground: "#ffffff",
+    optionInactiveBorder: "#efc8a7",
+    optionHoverBorder: "#fb923c",
+    accentText: "#9a3412",
+    primaryButton: "#c2410c",
+    primaryButtonHover: "#9a3412",
+    ticketBackground: "linear-gradient(180deg, #ffffff 0%, #fff8ef 100%)",
+    ticketBorder: "#efc8a7",
+    ticketMutedBackground: "#fff3e5",
+    ticketAccentBackground: "#ffedd5",
+    ticketAccentText: "#c2410c",
+  }),
+  workshop_pro: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.96)",
     surfaceBorder: "#cbd5e1",
@@ -193,8 +393,9 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#334155",
     primaryButton: "#334155",
     primaryButtonHover: "#1e293b",
-  },
-  carwash_fresh: {
+  }),
+  carwash_fresh: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.96)",
     surfaceBorder: "#bae6fd",
@@ -213,8 +414,9 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#0369a1",
     primaryButton: "#0284c7",
     primaryButtonHover: "#0369a1",
-  },
-  craft_warm: {
+  }),
+  craft_warm: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.95)",
     surfaceBorder: "#e7d2ad",
@@ -233,8 +435,9 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#92400e",
     primaryButton: "#92400e",
     primaryButtonHover: "#78350f",
-  },
-  electrician_bold: {
+  }),
+  electrician_bold: createTheme({
+    layoutVariant: "stacked",
     pageBackground: "linear-gradient(180deg, #fffbeb 0%, #fef9c3 100%)",
     surfaceBackground: "rgba(255, 255, 255, 0.96)",
     surfaceBorder: "#f7d873",
@@ -253,33 +456,216 @@ const MODERN_TEMPLATE_THEMES = {
     accentText: "#a16207",
     primaryButton: "#ca8a04",
     primaryButtonHover: "#a16207",
-  },
+  }),
 } as const;
 
 export function QuoteCalculatorV2({
   config,
   organizationName,
+  presentation,
+  assignableUsers = [],
   canUseManualAdjustments = false,
+  canSaveQuotes = true,
+  canSaveOrders = true,
+  canChargeOrders = true,
+  canScheduleOrders = true,
+  demoMode = false,
+  initialContext,
 }: QuoteCalculatorV2Props) {
-  const isLegacyTemplate = config.branding.quoteTemplate === "legacy_gica";
   const effectiveLogoUrl = getEffectiveLogoUrl({
     businessType: config.branding.businessType,
     logoUrl: config.branding.logoUrl,
   });
+  const isLegacyTemplate = config.branding.quoteTemplate === "legacy_gica";
   const modernTheme =
     MODERN_TEMPLATE_THEMES[config.branding.quoteTemplate as keyof typeof MODERN_TEMPLATE_THEMES] ??
     MODERN_TEMPLATE_THEMES.modern;
+  const isPosLayout = modernTheme.layoutVariant !== "stacked";
+  const workMode = getCaptureWorkModeFromConfig(config);
+  const requestedCaptureIntent: CaptureIntentMode | null =
+    initialContext?.intent === "paid"
+      ? "paid"
+      : initialContext?.intent === "quote"
+        ? "quote"
+        : initialContext?.intent === "order" && workMode === "scheduled"
+          ? "appointment"
+          : null;
+  const captureIntents = useMemo(
+    () =>
+      demoMode
+        ? (["paid", "appointment", "quote"] as CaptureIntentMode[])
+        : getAvailableCaptureIntents({
+            canSaveQuotes,
+            canSaveOrders,
+            canChargeOrders,
+            canScheduleOrders,
+          }),
+    [canChargeOrders, canSaveOrders, canSaveQuotes, canScheduleOrders, demoMode]
+  );
+  const defaultCaptureIntent = useMemo(
+    () =>
+      demoMode
+        ? requestedCaptureIntent ?? (workMode === "scheduled" ? "appointment" : "paid")
+        : getDefaultCaptureIntent({
+            workMode,
+            canSaveQuotes,
+            canSaveOrders,
+            canChargeOrders,
+            canScheduleOrders,
+            requestedIntent: requestedCaptureIntent,
+          }),
+    [
+      canChargeOrders,
+      canSaveOrders,
+      canSaveQuotes,
+      canScheduleOrders,
+      demoMode,
+      requestedCaptureIntent,
+      workMode,
+    ]
+  );
+  const initialCaptureIntent =
+    requestedCaptureIntent || captureIntents.length === 1
+      ? defaultCaptureIntent
+      : null;
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
   const [extraQuantities, setExtraQuantities] = useState<Record<string, number>>({});
   const [manualAdjustments, setManualAdjustments] = useState<ManualAdjustment[]>([]);
   const [manualLabel, setManualLabel] = useState("");
   const [manualAmount, setManualAmount] = useState("");
+  const [customerName, setCustomerName] = useState(initialContext?.customerName?.trim() || "");
+  const [customerPhone, setCustomerPhone] = useState(initialContext?.customerPhone?.trim() || "");
+  const [selectedClient, setSelectedClient] = useState<ClientSearchMatch | null>(null);
+  const [clientMatches, setClientMatches] = useState<ClientSearchMatch[]>([]);
+  const [searchingClients, setSearchingClients] = useState(false);
+  const [orderNotes, setOrderNotes] = useState("");
+  const [assignedToUserId, setAssignedToUserId] = useState("");
+  const [flowType, setFlowType] = useState<ServiceOrderFlowType>(ServiceOrderFlowType.WALK_IN);
+  const [scheduledFor, setScheduledFor] = useState("");
+  const [showOptionalDetails, setShowOptionalDetails] = useState(false);
+  const [captureIntent, setCaptureIntent] = useState<CaptureIntentMode | null>(initialCaptureIntent);
+  const [saveIntent, setSaveIntent] = useState<SaveIntent>(
+    initialCaptureIntent === "quote" && canSaveQuotes
+        ? "quote"
+        : initialCaptureIntent === "appointment" && canSaveOrders
+          ? "order"
+          : demoMode || canChargeOrders
+            ? "paid"
+            : canSaveOrders
+              ? "order"
+              : "quote"
+  );
   const [downloading, setDownloading] = useState(false);
+  const [savingQuote, setSavingQuote] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
-  const summaryRef = useRef<HTMLDivElement>(null);
+  const saveSectionRef = useRef<HTMLDivElement>(null);
+  const summarySectionRef = useRef<HTMLDivElement>(null);
+  const initialClientIdRef = useRef(initialContext?.clientId?.trim() || null);
+
+  useEffect(() => {
+    if (!captureIntent) {
+      return;
+    }
+
+    if (captureIntent === "appointment") {
+      setFlowType(ServiceOrderFlowType.SCHEDULED);
+      setSaveIntent("order");
+      return;
+    }
+
+    setFlowType(ServiceOrderFlowType.WALK_IN);
+    setScheduledFor("");
+    setSaveIntent(
+      captureIntent === "quote"
+        ? "quote"
+        : demoMode || canChargeOrders
+          ? "paid"
+          : "order"
+    );
+  }, [captureIntent, canChargeOrders, demoMode]);
+
+  useEffect(() => {
+    if (captureIntent && captureIntents.includes(captureIntent)) {
+      return;
+    }
+
+    if (captureIntents.length === 1) {
+      setCaptureIntent(captureIntents[0]);
+      return;
+    }
+
+    if (requestedCaptureIntent) {
+      setCaptureIntent(defaultCaptureIntent);
+    }
+  }, [captureIntent, captureIntents, defaultCaptureIntent, requestedCaptureIntent]);
+
+  useEffect(() => {
+    const query = customerPhone.trim().length >= 2 ? customerPhone.trim() : customerName.trim();
+
+    if (query.length < 2) {
+      setClientMatches([]);
+      setSearchingClients(false);
+      return;
+    }
+
+    let ignore = false;
+    const timeoutId = window.setTimeout(async () => {
+      setSearchingClients(true);
+
+      try {
+        const response = await fetch(`/api/clients/search?q=${encodeURIComponent(query)}`, {
+          cache: "no-store",
+        });
+        const payload = await response.json();
+
+        if (ignore) {
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            getApiErrorMessage({
+              status: response.status,
+              payloadError: payload.error,
+              fallback: "No se pudo buscar clientes",
+              permissionAction: "view_clients",
+            })
+          );
+        }
+
+        const matches = Array.isArray(payload) ? payload : [];
+        setClientMatches(matches);
+
+        if (initialClientIdRef.current && !selectedClient) {
+          const matchedClient = matches.find((client) => client.id === initialClientIdRef.current);
+
+          if (matchedClient) {
+            setSelectedClient(matchedClient);
+            setCustomerName(matchedClient.name);
+            setCustomerPhone(matchedClient.phone ?? "");
+            initialClientIdRef.current = null;
+          }
+        }
+      } catch {
+        if (!ignore) {
+          setClientMatches([]);
+        }
+      } finally {
+        if (!ignore) {
+          setSearchingClients(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      ignore = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [customerName, customerPhone, selectedClient]);
 
   const activeCategoryCount = useMemo(
     () =>
@@ -301,6 +687,8 @@ export function QuoteCalculatorV2({
           .filter((option) => selectedIds.includes(option.id))
           .map((option) => ({
             id: `${category.id}-${option.id}`,
+            categoryId: category.id,
+            optionId: option.id,
             label: `${category.name} · ${option.name}`,
             amount: option.price,
           }));
@@ -317,14 +705,20 @@ export function QuoteCalculatorV2({
           return [];
         }
 
-        const billableQuantity =
-          extra.pricingType === "FIXED"
-            ? 1
-            : quantity;
-        const amount =
-          extra.pricingType === "FIXED" && quantity > 0
-            ? extra.price
-            : billableQuantity * extra.price;
+        const billableQuantity = getBillableExtraQuantity(
+          extra.pricingType,
+          quantity,
+          extra.includedQuantity
+        );
+        const amount = getExtraLiveAmount(
+          extra.pricingType,
+          quantity,
+          extra.includedQuantity,
+          extra.price
+        );
+        const captureMode = getExtraCaptureMode(extra);
+        const displayGroup = getExtraDisplayGroup(extra);
+        const unitLabel = getExtraUnitLabel(extra);
 
         return [
           {
@@ -332,12 +726,15 @@ export function QuoteCalculatorV2({
             label:
               extra.pricingType === "FIXED"
                 ? extra.name
-                : `${extra.name} (${quantity})`,
+                : `${extra.name} (${formatExtraUnits(quantity, unitLabel)})`,
             amount,
             quantity,
             pricingType: extra.pricingType,
             billableQuantity,
             includedQuantity: extra.includedQuantity,
+            captureMode,
+            displayGroup,
+            unitLabel,
           },
         ];
       }),
@@ -352,6 +749,11 @@ export function QuoteCalculatorV2({
       ),
     [extraRows, manualAdjustments, selectedRows]
   );
+  const quoteActionLabel = `Guardar ${
+    (presentation?.quoteLabel || "cotización").toLowerCase() === "cotizar"
+      ? "propuesta"
+      : presentation?.quoteLabel.toLowerCase()
+  }`;
 
   function toggleOption(categoryId: string, optionId: string) {
     const category = config.categories.find((item) => item.id === categoryId);
@@ -429,6 +831,30 @@ export function QuoteCalculatorV2({
     setManualAdjustments([]);
     setManualLabel("");
     setManualAmount("");
+    setCustomerName(initialContext?.customerName?.trim() || "");
+    setCustomerPhone(initialContext?.customerPhone?.trim() || "");
+    setSelectedClient(null);
+    setClientMatches([]);
+    setOrderNotes("");
+    setAssignedToUserId("");
+    setFlowType(
+      captureIntent === "appointment"
+        ? ServiceOrderFlowType.SCHEDULED
+        : ServiceOrderFlowType.WALK_IN
+    );
+    setScheduledFor("");
+    setSaveIntent(
+      captureIntent === "quote"
+          ? "quote"
+          : captureIntent === "appointment" && (demoMode || canSaveOrders)
+            ? "order"
+            : demoMode || canChargeOrders
+              ? "paid"
+              : canSaveOrders
+                ? "order"
+                : "quote"
+    );
+    initialClientIdRef.current = initialContext?.clientId?.trim() || null;
   }
 
   function addManualAdjustment() {
@@ -467,6 +893,236 @@ export function QuoteCalculatorV2({
     setManualAdjustments((current) => current.filter((item) => item.id !== id));
   }
 
+  function applyClientSuggestion(client: ClientSearchMatch) {
+    initialClientIdRef.current = client.id;
+    setSelectedClient(client);
+    setCustomerName(client.name);
+    setCustomerPhone(client.phone ?? "");
+    setClientMatches([]);
+  }
+
+  function formatClientActivity(value: string | null) {
+    if (!value) {
+      return "Sin actividad reciente";
+    }
+
+    return new Intl.DateTimeFormat(config.branding.language, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  }
+
+  function buildSnapshot() {
+    return {
+      organizationName,
+      businessName: config.branding.businessName,
+      total,
+      selectedRows,
+      extraRows,
+      manualAdjustments,
+    };
+  }
+
+  function buildOrderItems() {
+    return [
+      ...selectedRows.map((row) => ({
+        itemType: ServiceOrderItemType.SERVICE,
+        label: row.label,
+        quantity: 1,
+        unitPrice: row.amount,
+        total: row.amount,
+      })),
+      ...extraRows.map((row) => ({
+        itemType: ServiceOrderItemType.EXTRA,
+        label: row.label,
+        quantity: row.pricingType === "FIXED" ? 1 : row.billableQuantity,
+        unitPrice:
+          row.pricingType === "FIXED"
+            ? row.amount
+            : Math.round(row.amount / Math.max(1, row.billableQuantity)),
+        total: row.amount,
+        metadata: {
+          pricingType: row.pricingType,
+          requestedQuantity: row.quantity,
+          billableQuantity: row.billableQuantity,
+          includedQuantity: row.includedQuantity,
+          captureMode: row.captureMode,
+          displayGroup: row.displayGroup,
+          unitLabel: row.unitLabel,
+        },
+      })),
+      ...manualAdjustments.map((row) => ({
+        itemType: ServiceOrderItemType.ADJUSTMENT,
+        label: row.label,
+        quantity: 1,
+        unitPrice: row.amount,
+        total: row.amount,
+      })),
+    ];
+  }
+
+  function buildQuoteItems() {
+    return [
+      ...selectedRows.map((row) => ({
+        itemType: QuoteItemType.SERVICE,
+        label: row.label,
+        quantity: 1,
+        unitPrice: row.amount,
+        total: row.amount,
+      })),
+      ...extraRows.map((row) => ({
+        itemType: QuoteItemType.EXTRA,
+        label: row.label,
+        quantity: row.pricingType === "FIXED" ? 1 : row.billableQuantity,
+        unitPrice:
+          row.pricingType === "FIXED"
+            ? row.amount
+            : Math.round(row.amount / Math.max(1, row.billableQuantity)),
+        total: row.amount,
+        metadata: {
+          pricingType: row.pricingType,
+          requestedQuantity: row.quantity,
+          billableQuantity: row.billableQuantity,
+          includedQuantity: row.includedQuantity,
+          captureMode: row.captureMode,
+          displayGroup: row.displayGroup,
+          unitLabel: row.unitLabel,
+        },
+      })),
+      ...manualAdjustments.map((row) => ({
+        itemType: QuoteItemType.ADJUSTMENT,
+        label: row.label,
+        quantity: 1,
+        unitPrice: row.amount,
+        total: row.amount,
+      })),
+    ];
+  }
+
+  async function saveQuote() {
+    if (total === 0 || savingQuote) {
+      return;
+    }
+
+    if (flowType === ServiceOrderFlowType.SCHEDULED && !scheduledFor) {
+      setToast({
+        message: "Selecciona fecha y hora para guardar la propuesta programada.",
+        type: "info",
+      });
+      return;
+    }
+
+    setSavingQuote(true);
+
+    try {
+      const response = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: selectedClient?.id ?? null,
+          flowType,
+          customerName,
+          customerPhone,
+          notes: orderNotes,
+          scheduledFor: flowType === ServiceOrderFlowType.SCHEDULED ? scheduledFor : null,
+          currency: config.branding.currency,
+          snapshot: buildSnapshot(),
+          items: buildQuoteItems(),
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          getApiErrorMessage({
+            status: response.status,
+            payloadError: payload.error,
+            fallback: "No se pudo guardar la propuesta",
+            permissionAction: "create_quote",
+          })
+        );
+      }
+
+      resetQuote();
+      setToast({
+        message: "Propuesta guardada correctamente.",
+        type: "success",
+      });
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : "Error inesperado",
+        type: "error",
+      });
+    } finally {
+      setSavingQuote(false);
+    }
+  }
+
+  async function saveOrder(status: ServiceOrderStatus) {
+    if (total === 0 || savingOrder) {
+      return;
+    }
+
+    if (flowType === ServiceOrderFlowType.SCHEDULED && !scheduledFor) {
+      setToast({
+        message: "Selecciona fecha y hora para guardar este trabajo programado.",
+        type: "info",
+      });
+      return;
+    }
+
+    setSavingOrder(true);
+
+    try {
+      const response = await fetch("/api/service-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: selectedClient?.id ?? null,
+          status,
+          flowType,
+          customerName,
+          customerPhone,
+          notes: orderNotes,
+          assignedToUserId: assignedToUserId || null,
+          scheduledFor: flowType === ServiceOrderFlowType.SCHEDULED ? scheduledFor : null,
+          currency: config.branding.currency,
+          snapshot: buildSnapshot(),
+          items: buildOrderItems(),
+        }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          getApiErrorMessage({
+            status: response.status,
+            payloadError: payload.error,
+            fallback: "No se pudo guardar la orden",
+            permissionAction:
+              status === ServiceOrderStatus.PAID ? "charge_order" : "create_order",
+          })
+        );
+      }
+
+      resetQuote();
+      setToast({
+        message:
+          status === ServiceOrderStatus.PAID
+            ? "Venta guardada y cobrada correctamente."
+            : "Orden guardada correctamente.",
+        type: "success",
+      });
+    } catch (error) {
+      setToast({
+        message: error instanceof Error ? error.message : "Error inesperado",
+        type: "error",
+      });
+    } finally {
+      setSavingOrder(false);
+    }
+  }
+
   async function downloadSummary() {
     if (total === 0 || downloading) {
       return;
@@ -474,1088 +1130,397 @@ export function QuoteCalculatorV2({
 
     setDownloading(true);
 
-    const accentColor = config.branding.primaryColor || "#1f2937";
-    const surfaceColor = config.branding.secondaryColor || "#fffaf4";
-    const tempDiv = document.createElement("div");
-
-    tempDiv.style.position = "fixed";
-    tempDiv.style.left = "-10000px";
-    tempDiv.style.top = "0";
-    tempDiv.style.width = isLegacyTemplate ? "400px" : "440px";
-    tempDiv.style.padding = isLegacyTemplate ? "20px" : "24px";
-    tempDiv.style.background = "#ffffff";
-    tempDiv.style.fontFamily = "Arial, sans-serif";
-    tempDiv.style.color = "#111827";
-    tempDiv.style.border = `2px solid ${accentColor}`;
-    tempDiv.style.borderRadius = isLegacyTemplate ? "12px" : "32px";
-    tempDiv.style.boxSizing = "border-box";
-    tempDiv.style.boxShadow = isLegacyTemplate
-      ? "none"
-      : "0 12px 32px rgba(15, 23, 42, 0.06)";
-    tempDiv.style.minHeight = isLegacyTemplate ? "0" : "720px";
-    tempDiv.style.display = "flex";
-    tempDiv.style.flexDirection = "column";
-
-    const header = document.createElement("div");
-    header.style.display = "flex";
-    header.style.flexDirection = "column";
-    header.style.alignItems = "center";
-    header.style.justifyContent = "center";
-    header.style.padding = isLegacyTemplate ? "0 0 12px" : "28px 12px 12px";
-    header.style.marginBottom = isLegacyTemplate ? "12px" : "18px";
-
-    if (effectiveLogoUrl) {
-      const logo = document.createElement("img");
-      logo.src = await resolveLogoSource(effectiveLogoUrl);
-      logo.alt = config.branding.businessName;
-      logo.crossOrigin = "anonymous";
-      logo.style.width = isLegacyTemplate ? "100px" : "180px";
-      logo.style.height = isLegacyTemplate ? "100px" : "180px";
-      logo.style.objectFit = "contain";
-      logo.style.display = "block";
-      logo.style.margin = "0 auto 18px auto";
-
-      await waitForImageLoad(logo);
-
-      header.appendChild(logo);
-    } else {
-      const fallbackLogo = document.createElement("div");
-      fallbackLogo.textContent = config.branding.businessName.slice(0, 2).toUpperCase();
-      fallbackLogo.style.width = isLegacyTemplate ? "100px" : "96px";
-      fallbackLogo.style.height = isLegacyTemplate ? "100px" : "96px";
-      fallbackLogo.style.display = "flex";
-      fallbackLogo.style.alignItems = "center";
-      fallbackLogo.style.justifyContent = "center";
-      fallbackLogo.style.borderRadius = isLegacyTemplate ? "24px" : "999px";
-      fallbackLogo.style.margin = "0 auto 18px auto";
-      fallbackLogo.style.background = surfaceColor;
-      fallbackLogo.style.color = accentColor;
-      fallbackLogo.style.fontSize = "32px";
-      fallbackLogo.style.fontWeight = "700";
-      fallbackLogo.style.border = `1px solid ${accentColor}33`;
-      header.appendChild(fallbackLogo);
-    }
-
-    const headerText = document.createElement("div");
-    headerText.style.textAlign = "center";
-
-    const overline = document.createElement("p");
-    overline.textContent = organizationName;
-    overline.style.margin = isLegacyTemplate ? "0 0 10px 0" : "0 0 6px 0";
-    overline.style.fontSize = "11px";
-    overline.style.fontWeight = "700";
-    overline.style.letterSpacing = "0.14em";
-    overline.style.textTransform = "uppercase";
-    overline.style.color = accentColor;
-    headerText.appendChild(overline);
-
-    const title = document.createElement("h2");
-    title.textContent =
-      config.ui.titles.calculatorTitle || `Cotización ${config.branding.businessName}`;
-    title.style.margin = "0";
-    title.style.fontSize = isLegacyTemplate ? "22px" : "28px";
-    title.style.lineHeight = "1.2";
-    title.style.color = accentColor;
-    title.style.fontWeight = isLegacyTemplate ? "700" : "500";
-    headerText.appendChild(title);
-
-    const subtitle = document.createElement("p");
-    subtitle.textContent =
-      config.ui.titles.calculatorSubtitle || "Resumen de servicios y extras";
-    subtitle.style.margin = isLegacyTemplate ? "10px 0 0 0" : "12px 0 0 0";
-    subtitle.style.fontSize = "14px";
-    subtitle.style.lineHeight = "1.5";
-    subtitle.style.color = "#475569";
-    if (!isLegacyTemplate) {
-      headerText.appendChild(subtitle);
-    }
-
-    header.appendChild(headerText);
-    tempDiv.appendChild(header);
-
-    const addRow = (label: string, value: string, detail?: string) => {
-      const row = document.createElement("div");
-      row.style.display = "flex";
-      row.style.justifyContent = "space-between";
-      row.style.alignItems = "flex-start";
-      row.style.gap = "12px";
-      row.style.padding = isLegacyTemplate ? "6px 0" : "10px 0";
-
-      const leftBlock = document.createElement("div");
-      leftBlock.style.flex = "1";
-      leftBlock.style.minWidth = "0";
-
-      const left = document.createElement("span");
-      left.textContent = label;
-      left.style.display = "block";
-      left.style.fontSize = "14px";
-      left.style.lineHeight = "1.5";
-      left.style.color = "#1f2937";
-      leftBlock.appendChild(left);
-
-      if (detail) {
-        const detailText = document.createElement("span");
-        detailText.textContent = detail;
-        detailText.style.display = "block";
-        detailText.style.marginTop = "4px";
-        detailText.style.fontSize = "12px";
-        detailText.style.lineHeight = "1.4";
-        detailText.style.color = "#64748b";
-        leftBlock.appendChild(detailText);
-      }
-
-      const right = document.createElement("span");
-      right.textContent = value;
-      right.style.flexShrink = "0";
-      right.style.fontSize = "14px";
-      right.style.fontWeight = "700";
-      right.style.color = "#111827";
-
-      row.appendChild(leftBlock);
-      row.appendChild(right);
-      tempDiv.appendChild(row);
-
-      const divider = document.createElement("div");
-      divider.style.height = "1px";
-      divider.style.background = isLegacyTemplate
-        ? "rgba(212, 175, 55, 0.22)"
-        : "rgba(226, 232, 240, 0.9)";
-      divider.style.margin = isLegacyTemplate ? "0 0 6px 0" : "0 0 8px 0";
-      tempDiv.appendChild(divider);
-    };
-
-    selectedRows.forEach((row) => {
-      addRow(
-        row.label,
-        formatMoney(row.amount, config.branding.currency, config.branding.language)
-      );
-    });
-
-    extraRows.forEach((row) => {
-      addRow(
-        row.label,
-        formatMoney(row.amount, config.branding.currency, config.branding.language),
-        row.pricingType === "PER_UNIT"
-          ? `Se cobran ${row.billableQuantity} ${row.billableQuantity === 1 ? "unidad" : "unidades"}.`
-          : "Cargo fijo"
-      );
-    });
-
-    manualAdjustments.forEach((row) => {
-      addRow(
-        row.label,
-        formatMoney(row.amount, config.branding.currency, config.branding.language),
-        "Ajuste manual agregado antes de generar la cotización."
-      );
-    });
-
-    const totalSection = document.createElement("div");
-    totalSection.style.marginTop = isLegacyTemplate ? "14px" : "auto";
-    totalSection.style.paddingTop = "16px";
-    totalSection.style.borderTop = `2px dashed ${accentColor}`;
-
-    const totalRow = document.createElement("div");
-    totalRow.style.display = "flex";
-    totalRow.style.justifyContent = "space-between";
-    totalRow.style.alignItems = "center";
-    totalRow.style.gap = "12px";
-
-    const totalLabel = document.createElement("span");
-    totalLabel.textContent = `${config.ui.labels.total || "Total"}:`;
-    totalLabel.style.fontSize = isLegacyTemplate ? "18px" : "20px";
-    totalLabel.style.fontWeight = "700";
-    totalLabel.style.color = accentColor;
-
-    const totalValue = document.createElement("span");
-    totalValue.textContent = formatMoney(
-      total,
-      config.branding.currency,
-      config.branding.language
-    );
-    totalValue.style.fontSize = isLegacyTemplate ? "24px" : "28px";
-    totalValue.style.fontWeight = "700";
-    totalValue.style.color = accentColor;
-
-    totalRow.appendChild(totalLabel);
-    totalRow.appendChild(totalValue);
-    totalSection.appendChild(totalRow);
-    tempDiv.appendChild(totalSection);
-
-    document.body.appendChild(tempDiv);
-
     try {
-      const canvas = await html2canvas(tempDiv, {
-        scale: 3,
-        backgroundColor: "#ffffff",
-        useCORS: true,
+      await downloadQuoteImage({
+        branding: {
+          businessName: config.branding.businessName,
+          organizationName,
+          logoUrl: effectiveLogoUrl,
+          primaryColor: config.branding.primaryColor,
+          secondaryColor: config.branding.secondaryColor,
+          currency: config.branding.currency,
+          language: config.branding.language,
+        },
+        title:
+          config.ui.titles.calculatorTitle || `Resumen ${config.branding.businessName}`,
+        subtitle:
+          config.ui.titles.calculatorSubtitle || "Resumen de servicios y extras",
+        totalLabel: config.ui.labels.total || "Total",
+        total,
+        isLegacyTemplate,
+        filename: "resumen-captura.png",
+        rows: [
+          ...selectedRows.map((row) => ({
+            label: row.label,
+            amount: row.amount,
+          })),
+          ...extraRows.map((row) => ({
+            label: row.label,
+            amount: row.amount,
+            detail:
+              row.pricingType === "PER_UNIT"
+                ? `Se cobran ${row.billableQuantity} ${row.billableQuantity === 1 ? "unidad" : "unidades"}.`
+                : "Cargo fijo",
+          })),
+          ...manualAdjustments.map((row) => ({
+            label: row.label,
+            amount: row.amount,
+            detail: "Ajuste manual agregado antes de generar el resumen.",
+          })),
+        ],
       });
-      const dataUrl = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = "cotizacion-v2.png";
-      link.click();
     } catch {
       setToast({
-        message: "No se pudo descargar la cotización. Intenta nuevamente.",
+        message: "No se pudo descargar el resumen. Intenta nuevamente.",
         type: "error",
       });
     } finally {
-      document.body.removeChild(tempDiv);
       setDownloading(false);
     }
   }
 
-  if (isLegacyTemplate) {
-    const legacyButtonStyle = (active: boolean) =>
-      active
-        ? {
-            borderColor: config.branding.primaryColor,
-            backgroundColor: config.branding.secondaryColor,
-            boxShadow: "0 10px 25px rgba(212, 175, 55, 0.12)",
-          }
-        : {
-            borderColor: "#fde68a",
-            backgroundColor: "rgba(255,255,255,0.88)",
-          };
+  const availableSaveIntents = [
+    !demoMode && canSaveQuotes
+      ? {
+          id: "quote" as const,
+          title: `Solo ${presentation?.quoteLabel?.toLowerCase() || "cotizar"}`,
+          description: "Guárdalo como propuesta para retomarlo después.",
+          icon: <FileText size={18} />,
+        }
+      : null,
+    !demoMode && canSaveOrders
+      ? {
+          id: "order" as const,
+          title:
+            flowType === ServiceOrderFlowType.SCHEDULED && canScheduleOrders
+              ? "Agendar trabajo"
+              : "Atender hoy",
+          description:
+            flowType === ServiceOrderFlowType.SCHEDULED && canScheduleOrders
+              ? "Déjalo listo con fecha y hora."
+              : "Guárdalo como orden activa para moverlo hoy.",
+          icon:
+            flowType === ServiceOrderFlowType.SCHEDULED ? (
+              <CalendarClock size={18} />
+            ) : (
+              <ClipboardList size={18} />
+            ),
+        }
+      : null,
+    !demoMode && canSaveOrders && canChargeOrders
+      ? {
+          id: "paid" as const,
+          title: "Cobrar ahora",
+          description: "Cierra la venta en este momento.",
+          icon: <CheckCircle2 size={18} />,
+        }
+      : null,
+  ].filter(Boolean) as CaptureSaveIntentOption[];
 
-    return (
-      <>
-        <main
-          className="min-h-screen px-4 py-8 sm:px-6 lg:px-8"
-          style={{
-            background:
-              "linear-gradient(to bottom right, #ffffff, #fffbeb, #fef3c7)",
-          }}
-        >
-          <div className="mx-auto w-full max-w-5xl space-y-8">
-            <div className="flex justify-end">
-              <AdminLogoutButton />
-            </div>
+  const primarySaveIntent =
+    availableSaveIntents.find((item) => item.id === saveIntent) ?? availableSaveIntents[0] ?? null;
+  const intentTitle =
+    captureIntent === "appointment"
+      ? "Agenda rápida"
+      : captureIntent === "quote"
+        ? "Cotización rápida"
+        : "Cobro rápido";
+  const intentDescription =
+    captureIntent === "appointment"
+      ? "Selecciona el servicio, aparta la fecha y guarda la cita sin rodeos."
+      : captureIntent === "quote"
+        ? "Deja una propuesta lista para convertirla después."
+        : canChargeOrders
+          ? "Agrega lo necesario y cierra la venta con un solo paso principal."
+          : "Agrega lo necesario y deja el trabajo listo para seguirlo hoy.";
+  const orderedCaptureIntents = [...captureIntents].sort((left, right) => {
+    const preferredOrder =
+      workMode === "scheduled"
+        ? ["appointment", "paid", "quote"]
+        : ["paid", "appointment", "quote"];
 
-            <div className="space-y-8 relative">
-              <div className="sparkle" style={{ top: "8%", left: "5%" }} />
-              <div className="sparkle" style={{ top: "24%", right: "8%", animationDelay: "1s" }} />
-              <div className="sparkle" style={{ top: "62%", left: "12%", animationDelay: "2s" }} />
+    return preferredOrder.indexOf(left) - preferredOrder.indexOf(right);
+  });
+  const primaryActionLabel = demoMode
+    ? "Ver acciones demo"
+    : captureIntent === "quote"
+      ? quoteActionLabel
+      : captureIntent === "appointment"
+        ? "Agendar"
+        : canChargeOrders
+          ? "Cobrar ahora"
+          : "Guardar trabajo";
+  const walkInFallbackIntent: CaptureIntentMode =
+    captureIntents.includes("paid")
+      ? "paid"
+      : captureIntents.includes("quote")
+        ? "quote"
+        : "appointment";
 
-              <header className="relative text-center">
-                <div className="mb-4 flex justify-center">
-                  {effectiveLogoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={effectiveLogoUrl}
-                      alt={config.branding.businessName}
-                      className="h-24 w-24 object-contain sm:h-28 sm:w-28"
-                    />
-                  ) : (
-                    <div
-                      className="flex h-24 w-24 items-center justify-center rounded-full border-2 text-3xl font-semibold sm:h-28 sm:w-28"
-                      style={{
-                        borderColor: config.branding.primaryColor,
-                        color: config.branding.primaryColor,
-                        backgroundColor: "#ffffff",
-                      }}
-                    >
-                      {config.branding.businessName.slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                </div>
+  function runPrimaryCaptureAction() {
+    if (!captureIntent) {
+      saveSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
 
-                <h1 className="shimmer-text text-4xl font-bold md:text-5xl">
-                  {config.branding.businessName}
-                </h1>
-                <p className="mt-2 text-lg font-light tracking-wide text-amber-700/80">
-                  {config.ui.titles.calculatorTitle || "Calculadora de cotizaciones"}
-                </p>
-                <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-amber-900/70 sm:text-base">
-                  {config.ui.titles.calculatorSubtitle || config.ui.texts.servicesHelper}
-                </p>
-                <div className="section-divider mx-auto mt-4 w-32" />
-              </header>
+    if (demoMode) {
+      saveSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
 
-              <div className="grid gap-8 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-                <div className="space-y-6">
-                  <section className="card-glam rounded-2xl p-6 shadow-lg">
-                    <h2 className="mb-1 text-lg font-medium text-amber-900">
-                      {config.ui.titles.servicesTitle || "Servicios"}
-                    </h2>
-                    <p className="mb-4 text-sm leading-6 text-amber-800/70">
-                      {config.ui.texts.servicesHelper ||
-                        "Selecciona una o varias categorías y luego marca las opciones necesarias."}
-                    </p>
+    if (captureIntent === "quote") {
+      void saveQuote();
+      return;
+    }
 
-                    <div className="space-y-4">
-                      {config.categories.map((category) => {
-                        const selectedIds = selectedOptions[category.id] ?? [];
-
-                        return (
-                          <div
-                            key={category.id}
-                            className="rounded-2xl border border-amber-100 bg-gradient-to-r from-amber-50/80 to-white p-4"
-                          >
-                            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                              <div>
-                                <h3 className="text-lg font-semibold text-slate-950">
-                                  {category.name}
-                                </h3>
-                                {category.description ? (
-                                  <p className="mt-1 text-sm leading-6 text-amber-800/70">
-                                    {category.description}
-                                  </p>
-                                ) : null}
-                              </div>
-                              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
-                                {category.multiSelect ? "Múltiple" : "Una opción"}
-                              </span>
-                            </div>
-
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              {category.options.map((option) => {
-                                const active = selectedIds.includes(option.id);
-
-                                return (
-                                  <button
-                                    key={option.id}
-                                    type="button"
-                                    onClick={() => toggleOption(category.id, option.id)}
-                                    className="rounded-xl border p-4 text-left text-sm transition"
-                                    style={legacyButtonStyle(active)}
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="font-semibold text-slate-950">
-                                          {option.name}
-                                        </p>
-                                        {option.description ? (
-                                          <p className="mt-1 text-xs leading-5 text-slate-600">
-                                            {option.description}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                      <span className="shrink-0 font-semibold text-slate-900">
-                                        {formatMoney(
-                                          option.price,
-                                          config.branding.currency,
-                                          config.branding.language
-                                        )}
-                                      </span>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  <section className="card-glam rounded-2xl p-6 shadow-lg">
-                    <h2 className="mb-1 text-lg font-medium text-amber-900">
-                      {config.ui.titles.extrasTitle || "Extras"}
-                    </h2>
-                    <p className="mb-4 text-sm leading-6 text-amber-800/70">
-                      {config.ui.texts.extrasHelper ||
-                        "Ajusta cantidades y cargos adicionales desde este bloque."}
-                    </p>
-                    <div className="space-y-3">
-                      {config.extras.map((extra) => {
-                        const quantity = extraQuantities[extra.id] ?? 0;
-                        const billableQuantity =
-                          extra.pricingType === "FIXED" ? (quantity > 0 ? 1 : 0) : quantity;
-                        const liveAmount =
-                          extra.pricingType === "FIXED" && quantity > 0
-                            ? extra.price
-                            : billableQuantity * extra.price;
-
-                        return (
-                          <div
-                            key={extra.id}
-                            className="flex items-center justify-between gap-4 rounded-xl border border-amber-100 bg-gradient-to-r from-amber-50 to-white p-3"
-                          >
-                            <div className="min-w-0">
-                              <p className="font-medium text-slate-950">{extra.name}</p>
-                              <p className="mt-1 text-xs text-amber-700/80">
-                                {extra.pricingType === "FIXED"
-                                  ? `Cargo fijo de ${formatMoney(extra.price, config.branding.currency, config.branding.language)}`
-                                  : `${formatMoney(extra.price, config.branding.currency, config.branding.language)} por unidad`}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                onClick={() => adjustExtra(extra.id, -1)}
-                                className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-white"
-                              >
-                                −
-                              </button>
-                              <span className="w-5 text-center text-sm font-semibold">
-                                {quantity}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => adjustExtra(extra.id, 1)}
-                                className="flex h-8 w-8 items-center justify-center rounded-full border border-amber-200 bg-white"
-                              >
-                                +
-                              </button>
-                              {quantity > 0 ? (
-                                <span className="min-w-20 text-right text-sm font-semibold text-slate-900">
-                                  {formatMoney(
-                                    liveAmount,
-                                    config.branding.currency,
-                                    config.branding.language
-                                  )}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-
-                  {canUseManualAdjustments ? (
-                    <section className="card-glam rounded-2xl p-6 shadow-lg">
-                      <h2 className="mb-1 text-lg font-medium text-amber-900">Ajustes manuales</h2>
-                      <p className="mb-4 text-sm leading-6 text-amber-800/70">
-                        Agrega conceptos temporales si necesitas cotizar algo que aún no está registrado.
-                      </p>
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto]">
-                        <input
-                          value={manualLabel}
-                          onChange={(event) => setManualLabel(event.target.value)}
-                          placeholder="Concepto adicional"
-                          className="admin-input px-4 py-3 text-sm"
-                        />
-                        <input
-                          type="number"
-                          min="0"
-                          value={manualAmount}
-                          onChange={(event) => setManualAmount(event.target.value)}
-                          placeholder="Precio"
-                          className="admin-input px-4 py-3 text-sm"
-                        />
-                        <button
-                          type="button"
-                          onClick={addManualAdjustment}
-                          className="btn-glam rounded-xl px-5 py-3 text-sm font-semibold text-white"
-                        >
-                          Agregar
-                        </button>
-                      </div>
-
-                      {manualAdjustments.length > 0 ? (
-                        <div className="mt-4 space-y-3">
-                          {manualAdjustments.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex flex-col gap-3 rounded-xl border border-amber-100 bg-gradient-to-r from-amber-50 to-white p-4 sm:flex-row sm:items-center sm:justify-between"
-                            >
-                              <div className="min-w-0">
-                                <p className="font-semibold text-slate-950">{item.label}</p>
-                                <p className="mt-1 text-xs text-amber-700/80">
-                                  Ajuste manual visible solo en esta cotización.
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="font-semibold text-slate-900">
-                                  {formatMoney(
-                                    item.amount,
-                                    config.branding.currency,
-                                    config.branding.language
-                                  )}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => removeManualAdjustment(item.id)}
-                                  className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600"
-                                >
-                                  Quitar
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </section>
-                  ) : null}
-                </div>
-
-                <aside className="space-y-6">
-                  <div
-                    ref={summaryRef}
-                    className="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-100 via-yellow-50 to-white p-6 shadow-xl"
-                  >
-                    <h2 className="shimmer-text mb-4 text-center text-lg font-semibold">
-                      {config.ui.titles.summaryTitle || "Resumen"}
-                    </h2>
-
-                    {total === 0 ? (
-                      <p className="py-4 text-center italic text-amber-600">
-                        {config.ui.texts.emptySummary ||
-                          "Selecciona al menos una opción para comenzar."}
-                      </p>
-                    ) : (
-                      <>
-                        <div className="space-y-2 text-sm">
-                          {selectedRows.map((row) => (
-                            <div key={row.id} className="flex justify-between gap-3">
-                              <span>{row.label}</span>
-                              <span className="shrink-0 font-semibold">
-                                {formatMoney(
-                                  row.amount,
-                                  config.branding.currency,
-                                  config.branding.language
-                                )}
-                              </span>
-                            </div>
-                          ))}
-
-                          {extraRows.map((row) => (
-                            <div key={row.id} className="flex justify-between gap-3">
-                              <span>{row.label}</span>
-                              <span className="shrink-0 font-semibold">
-                                {formatMoney(
-                                  row.amount,
-                                  config.branding.currency,
-                                  config.branding.language
-                                )}
-                              </span>
-                            </div>
-                          ))}
-
-                          {manualAdjustments.map((row) => (
-                            <div key={row.id} className="flex justify-between gap-3">
-                              <span>{row.label}</span>
-                              <span className="shrink-0 font-semibold">
-                                {formatMoney(
-                                  row.amount,
-                                  config.branding.currency,
-                                  config.branding.language
-                                )}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="section-divider my-4" />
-
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-xl text-amber-900">
-                            {config.ui.labels.total || "Total"}
-                          </span>
-                          <span className="shimmer-text text-3xl font-bold">
-                            {formatMoney(
-                              total,
-                              config.branding.currency,
-                              config.branding.language
-                            )}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <button
-                      type="button"
-                      onClick={downloadSummary}
-                      disabled={total === 0 || downloading}
-                      className="btn-glam w-full rounded-xl px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
-                    >
-                      {downloading
-                        ? "Generando imagen..."
-                        : config.ui.labels.download || "Descargar cotización"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={resetQuote}
-                      className="w-full rounded-xl border border-amber-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-sm"
-                    >
-                      {config.ui.labels.reset || "Nueva cotización"}
-                    </button>
-                  </div>
-                </aside>
-              </div>
-            </div>
-          </div>
-        </main>
-
-        {toast ? (
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={() => setToast(null)}
-          />
-        ) : null}
-      </>
+    void saveOrder(
+      captureIntent === "paid" && canChargeOrders
+        ? ServiceOrderStatus.PAID
+        : ServiceOrderStatus.CONFIRMED
     );
   }
 
   return (
     <>
       <main
-        className="admin-shell min-h-screen px-4 py-6 text-slate-950 sm:px-6 lg:px-8 xl:px-10 lg:py-8"
+        className="admin-shell min-h-full py-3 pb-32 text-slate-950 sm:py-4 lg:py-6 lg:pb-8"
         style={{ background: modernTheme.pageBackground }}
       >
-        <div className="mx-auto w-full max-w-7xl space-y-6">
-          <header
-            className="admin-surface rounded-3xl p-6 sm:p-8"
-            style={{
-              background: modernTheme.surfaceBackground,
-              borderColor: modernTheme.surfaceBorder,
-            }}
-          >
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="admin-label text-sm font-medium" style={{ color: modernTheme.badgeText }}>
-                  {organizationName}
-                </p>
-                <div className="mt-3 flex items-center gap-4">
-                  {effectiveLogoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={effectiveLogoUrl}
-                      alt={config.branding.businessName}
-                      className="h-16 w-16 rounded-2xl border border-[#eadfcb] object-contain bg-white p-2"
-                    />
-                  ) : (
-                    <div
-                      className="flex h-16 w-16 items-center justify-center rounded-2xl text-xl font-semibold text-white"
-                      style={{ backgroundColor: modernTheme.primaryButton }}
-                    >
-                      {config.branding.businessName.slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <h1 className="admin-title break-words font-poppins text-3xl font-semibold text-slate-950">
-                      {config.ui.titles.calculatorTitle || config.branding.businessName}
-                    </h1>
-                    <p className="admin-muted mt-2 text-sm leading-6 sm:text-base">
-                      {config.ui.titles.calculatorSubtitle ||
-                        config.ui.texts.servicesHelper}
-                    </p>
-                  </div>
-                </div>
-              </div>
+        <div className="w-full space-y-4 sm:space-y-5">
+          <CaptureExperienceHeader
+            kicker={captureIntent ? intentTitle : presentation?.primaryModuleLabel || "Captura"}
+            businessName={config.branding.businessName}
+            organizationName={organizationName}
+            effectiveLogoUrl={effectiveLogoUrl}
+            primaryButtonColor={modernTheme.primaryButton}
+            surfaceBackground={modernTheme.surfaceBackground}
+            surfaceBorder={modernTheme.surfaceBorder}
+            badgeText={modernTheme.badgeText}
+            title={
+              captureIntent
+                ? intentTitle
+                : "¿Quieres cobrar, agendar o hacer una cotización?"
+            }
+            description={
+              captureIntent
+                ? intentDescription
+                : "Primero elige una sola acción. Después el sistema acomoda el resto para ayudarte a terminar más rápido."
+            }
+          />
 
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <AdminLogoutButton />
-              </div>
-            </div>
-          </header>
-
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-            <section className="space-y-6">
-              <div
-                className="admin-surface rounded-3xl p-6 sm:p-8"
-                style={{
-                  background: modernTheme.surfaceBackground,
-                  borderColor: modernTheme.surfaceBorder,
-                }}
-              >
-                <div className="flex flex-col gap-2">
-                  <p className="admin-label text-sm font-medium">
-                    {config.ui.titles.servicesTitle || "Servicios"}
-                  </p>
-                  <p className="admin-muted text-sm leading-6">
-                    {config.ui.texts.servicesHelper ||
-                      "Selecciona las opciones que quieres incluir en la cotización."}
-                  </p>
-                </div>
-
-                <div className="mt-6 space-y-4">
-                  {config.categories.map((category) => {
-                    const selectedIds = selectedOptions[category.id] ?? [];
-
-                    return (
-                      <div
-                        key={category.id}
-                        className="admin-panel rounded-3xl p-5"
-                        style={{
-                          background: modernTheme.panelBackground,
-                          borderColor: modernTheme.panelBorder,
-                        }}
-                      >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <h2 className="font-poppins text-xl font-semibold text-slate-950">
-                              {category.name}
-                            </h2>
-                            {category.description ? (
-                              <p className="admin-muted mt-2 text-sm leading-6">
-                                {category.description}
-                              </p>
-                            ) : null}
-                          </div>
-                          <span
-                            className="inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em]"
-                            style={{
-                              borderColor: modernTheme.badgeBorder,
-                              background: modernTheme.badgeBackground,
-                              color: modernTheme.badgeText,
-                            }}
-                          >
-                            {category.multiSelect ? "Múltiple" : "Una opción"}
-                          </span>
-                        </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          {category.options.map((option) => {
-                            const active = selectedIds.includes(option.id);
-
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => toggleOption(category.id, option.id)}
-                                className="rounded-2xl border p-4 text-left transition"
-                                style={{
-                                  borderColor: active
-                                    ? modernTheme.optionActiveBorder
-                                    : modernTheme.optionInactiveBorder,
-                                  background: active
-                                    ? modernTheme.optionActiveBackground
-                                    : modernTheme.optionInactiveBackground,
-                                }}
-                              >
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="min-w-0">
-                                    <p className="font-semibold text-slate-950">
-                                      {option.name}
-                                    </p>
-                                    {option.description ? (
-                                      <p className="admin-muted mt-1 text-sm leading-6">
-                                        {option.description}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                  <span className="text-sm font-semibold text-slate-900">
-                                    {formatMoney(
-                                      option.price,
-                                      config.branding.currency,
-                                      config.branding.language
-                                    )}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div
-                className="admin-surface rounded-3xl p-6 sm:p-8"
-                style={{
-                  background: modernTheme.surfaceBackground,
-                  borderColor: modernTheme.surfaceBorder,
-                }}
-              >
-                <div className="flex flex-col gap-2">
-                  <p className="admin-label text-sm font-medium">
-                    {config.ui.titles.extrasTitle || "Extras"}
-                  </p>
-                  <p className="admin-muted text-sm leading-6">
-                    {config.ui.texts.extrasHelper ||
-                      "Ajusta extras y cantidades según las necesidades del cliente."}
-                  </p>
-                </div>
-
-                <div className="mt-6 space-y-3">
-                  {config.extras.map((extra) => {
-                    const quantity = extraQuantities[extra.id] ?? 0;
-                    const billableQuantity =
-                      extra.pricingType === "FIXED"
-                        ? quantity > 0
-                          ? 1
-                          : 0
-                        : quantity;
-                    const liveAmount =
-                      extra.pricingType === "FIXED" && quantity > 0
-                        ? extra.price
-                        : billableQuantity * extra.price;
-
-                    return (
-                      <div
-                        key={extra.id}
-                        className="admin-panel flex flex-col gap-4 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
-                        style={{
-                          background: modernTheme.panelBackground,
-                          borderColor: modernTheme.panelBorder,
-                        }}
-                      >
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-950">{extra.name}</p>
-                          {extra.description ? (
-                            <p className="admin-muted mt-1 text-sm leading-6">
-                              {extra.description}
-                            </p>
-                          ) : null}
-                          <p className="admin-muted mt-1 text-xs leading-5">
-                            {extra.pricingType === "FIXED"
-                              ? `Cargo fijo de ${formatMoney(extra.price, config.branding.currency, config.branding.language)}`
-                              : `${formatMoney(extra.price, config.branding.currency, config.branding.language)} por unidad`}
-                          </p>
-                          {quantity > 0 ? (
-                            <p className="admin-muted mt-2 text-xs leading-5">
-                              {extra.pricingType === "FIXED"
-                                ? `Cargo actual: ${formatMoney(liveAmount, config.branding.currency, config.branding.language)}`
-                                : `${billableQuantity} ${billableQuantity === 1 ? "unidad genera" : "unidades generan"} cargo.`}
-                            </p>
-                          ) : null}
-                        </div>
-
-                        <div className="flex flex-col items-start gap-2 self-start sm:items-end sm:self-center">
-                          {quantity > 0 ? (
-                            <p className="text-sm font-semibold text-slate-900">
-                              {formatMoney(
-                                liveAmount,
-                                config.branding.currency,
-                                config.branding.language
-                              )}
-                            </p>
-                          ) : null}
-                          <div className="flex items-center gap-3">
-                            <button
-                              type="button"
-                              onClick={() => adjustExtra(extra.id, -1)}
-                              className="admin-secondary inline-flex h-10 w-10 items-center justify-center text-lg font-semibold"
-                              style={{
-                                borderColor: modernTheme.badgeBorder,
-                                background: modernTheme.badgeBackground,
-                              }}
-                            >
-                              -
-                            </button>
-                            <span className="min-w-8 text-center text-sm font-semibold text-slate-900">
-                              {quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => adjustExtra(extra.id, 1)}
-                              className="admin-secondary inline-flex h-10 w-10 items-center justify-center text-lg font-semibold"
-                              style={{
-                                borderColor: modernTheme.badgeBorder,
-                                background: modernTheme.badgeBackground,
-                              }}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {canUseManualAdjustments ? (
-                <div
-                  className="admin-surface rounded-3xl p-6 sm:p-8"
-                  style={{
-                    background: modernTheme.surfaceBackground,
-                    borderColor: modernTheme.surfaceBorder,
-                  }}
-                >
-                  <div className="flex flex-col gap-2">
-                    <p className="admin-label text-sm font-medium">
-                      Ajustes manuales
-                    </p>
-                    <p className="admin-muted text-sm leading-6">
-                      Agrega conceptos temporales para esta cotización si el servicio o producto aún no existe en el sistema.
-                    </p>
-                  </div>
-
-                  <div className="mt-6 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_auto]">
-                    <input
-                      value={manualLabel}
-                      onChange={(event) => setManualLabel(event.target.value)}
-                      placeholder="Ejemplo: Producto especial o servicio adicional"
-                      className="admin-input px-4 py-3 text-sm"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      value={manualAmount}
-                      onChange={(event) => setManualAmount(event.target.value)}
-                      placeholder="Precio"
-                      className="admin-input px-4 py-3 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={addManualAdjustment}
-                      className="admin-primary w-full px-5 py-3 text-sm font-semibold lg:w-auto"
-                    >
-                      Agregar ajuste
-                    </button>
-                  </div>
-
-                  {manualAdjustments.length > 0 ? (
-                    <div className="mt-5 space-y-3">
-                      {manualAdjustments.map((item) => (
-                        <div
-                          key={item.id}
-                          className="admin-panel flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
-                          style={{
-                            background: modernTheme.panelBackground,
-                            borderColor: modernTheme.panelBorder,
-                          }}
-                        >
-                          <div className="min-w-0">
-                            <p className="font-semibold text-slate-950">{item.label}</p>
-                            <p className="admin-muted mt-1 text-sm leading-6">
-                              Ajuste manual visible solo en esta cotización.
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-semibold text-slate-900">
-                              {formatMoney(
-                                item.amount,
-                                config.branding.currency,
-                                config.branding.language
-                              )}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => removeManualAdjustment(item.id)}
-                              className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600"
-                            >
-                              Quitar
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </section>
-
-            <aside className="space-y-6">
-              <div
-                ref={summaryRef}
-                className="admin-surface rounded-3xl p-6 sm:p-8"
-                style={{
-                  background: modernTheme.summaryBackground,
-                  borderColor: modernTheme.summaryBorder,
-                }}
-              >
-                <p className="admin-label text-sm font-medium" style={{ color: modernTheme.badgeText }}>
-                  {config.ui.titles.summaryTitle || "Resumen"}
-                </p>
-
-                {total === 0 ? (
-                  <p className="admin-muted mt-4 text-sm leading-6">
-                    {config.ui.texts.emptySummary ||
-                      "Selecciona al menos una opción para comenzar."}
-                  </p>
-                ) : (
-                  <>
-                    <div className="mt-5 space-y-3 text-sm">
-                      {selectedRows.map((row) => (
-                        <div key={row.id} className="flex items-start justify-between gap-3">
-                          <span className="text-slate-700">{row.label}</span>
-                          <span className="font-semibold text-slate-900">
-                            {formatMoney(
-                              row.amount,
-                              config.branding.currency,
-                              config.branding.language
-                            )}
-                          </span>
-                        </div>
-                      ))}
-
-                      {extraRows.map((row) => (
-                        <div key={row.id} className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <span className="block text-slate-700">{row.label}</span>
-                            {row.pricingType === "PER_UNIT" ? (
-                              <span className="admin-muted mt-1 block text-xs leading-5">
-                                {`Se cobran ${row.billableQuantity} de ${row.quantity} ${row.quantity === 1 ? "unidad" : "unidades"}.`}
-                              </span>
-                            ) : null}
-                          </div>
-                          <span className="shrink-0 font-semibold text-slate-900">
-                            {formatMoney(
-                              row.amount,
-                              config.branding.currency,
-                              config.branding.language
-                            )}
-                          </span>
-                        </div>
-                      ))}
-
-                      {manualAdjustments.map((row) => (
-                        <div key={row.id} className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <span className="block text-slate-700">{row.label}</span>
-                            <span className="admin-muted mt-1 block text-xs leading-5">
-                              Ajuste manual
-                            </span>
-                          </div>
-                          <span className="shrink-0 font-semibold text-slate-900">
-                            {formatMoney(
-                              row.amount,
-                              config.branding.currency,
-                              config.branding.language
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-6 border-t border-[#efe6d8] pt-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <span
-                          className="font-poppins text-xl font-semibold text-slate-950"
-                          style={{ color: modernTheme.accentText }}
-                        >
-                          {config.ui.labels.total || "Total"}
-                        </span>
-                        <span
-                          className="font-poppins text-3xl font-semibold text-slate-950"
-                          style={{ color: modernTheme.accentText }}
-                        >
-                          {formatMoney(
-                            total,
-                            config.branding.currency,
-                            config.branding.language
-                          )}
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <button
-                  type="button"
-                  onClick={downloadSummary}
-                  disabled={total === 0 || downloading}
-                  className="admin-primary w-full px-5 py-3 text-sm font-semibold disabled:opacity-50"
-                  style={{ background: modernTheme.primaryButton }}
-                >
-                  {downloading
-                    ? "Generando imagen..."
-                    : config.ui.labels.download || "Descargar cotización"}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetQuote}
-                  className="admin-secondary w-full px-5 py-3 text-sm font-semibold"
-                >
-                  {config.ui.labels.reset || "Nueva cotización"}
-                </button>
-              </div>
-            </aside>
+          <div ref={saveSectionRef}>
+            <CaptureIntentLauncher
+              theme={modernTheme}
+              intents={orderedCaptureIntents}
+              selectedIntent={captureIntent}
+              onSelectIntent={setCaptureIntent}
+            />
           </div>
+
+          {captureIntent ? (
+            <div
+              className={
+                isPosLayout
+                  ? "grid gap-5 xl:grid-cols-[minmax(0,1.28fr)_minmax(360px,0.72fr)] 2xl:grid-cols-[minmax(0,1.36fr)_minmax(390px,0.64fr)]"
+                  : "grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]"
+              }
+            >
+              <section
+                className={
+                  isPosLayout
+                    ? "space-y-4 xl:max-h-[calc(100vh-9rem)] xl:overflow-y-auto xl:pr-2"
+                    : "space-y-6"
+                }
+              >
+                <CaptureCatalogSection
+                  categories={config.categories}
+                  selectedOptions={selectedOptions}
+                  theme={modernTheme}
+                  currency={config.branding.currency}
+                  language={config.branding.language}
+                  title={
+                    captureIntent === "paid"
+                      ? "Agrega lo que vas a cobrar"
+                      : captureIntent === "appointment"
+                        ? "Elige lo que vas a agendar"
+                        : "Arma la cotización"
+                  }
+                  helperText={
+                    captureIntent === "paid"
+                      ? "Toca los servicios o productos que quieres agregar al cobro."
+                      : captureIntent === "appointment"
+                        ? "Toca los servicios que vas a apartar en la cita."
+                        : "Toca los conceptos que quieres dejar en la propuesta."
+                  }
+                  onToggleOption={toggleOption}
+                />
+
+                <CaptureExtrasSection
+                  extras={config.extras}
+                  extraQuantities={extraQuantities}
+                  theme={modernTheme}
+                  currency={config.branding.currency}
+                  language={config.branding.language}
+                  title={
+                    captureIntent === "paid" ? "Extras rápidos" : config.ui.titles.extrasTitle || "Extras"
+                  }
+                  helperText={
+                    captureIntent === "paid"
+                      ? "Úsalos cuando quieras subir el ticket sin escribir."
+                      : config.ui.texts.extrasHelper ||
+                        "Ajusta extras y cantidades según lo que necesites registrar."
+                  }
+                  onAdjustExtra={adjustExtra}
+                />
+
+                {canUseManualAdjustments ? (
+                  <CaptureManualAdjustmentsSection
+                    manualLabel={manualLabel}
+                    manualAmount={manualAmount}
+                    manualAdjustments={manualAdjustments}
+                    theme={modernTheme}
+                    currency={config.branding.currency}
+                    language={config.branding.language}
+                    onManualLabelChange={setManualLabel}
+                    onManualAmountChange={setManualAmount}
+                    onAddManualAdjustment={addManualAdjustment}
+                    onRemoveManualAdjustment={removeManualAdjustment}
+                  />
+                ) : null}
+              </section>
+
+              <aside
+                className={
+                  isPosLayout
+                    ? "space-y-4 xl:sticky xl:top-24 xl:self-start"
+                    : "space-y-4 sm:space-y-6 xl:sticky xl:top-24 xl:self-start"
+                }
+              >
+                <CaptureDetailsStep
+                  intentMode={captureIntent}
+                  customerName={customerName}
+                  customerLabel={presentation?.customerLabel || "Cliente"}
+                  immediateLabel={presentation?.immediateLabel || "Atender ahora"}
+                  scheduledLabel={presentation?.scheduledLabel || "Agendar"}
+                  customerPhone={customerPhone}
+                  selectedClient={selectedClient}
+                  clientMatches={clientMatches}
+                  searchingClients={searchingClients}
+                  flowType={flowType}
+                  scheduledFor={scheduledFor}
+                  canScheduleOrders={canScheduleOrders}
+                  showOptionalDetails={showOptionalDetails}
+                  orderNotes={orderNotes}
+                  assignedToUserId={assignedToUserId}
+                  assignableUsers={assignableUsers}
+                  currency={config.branding.currency}
+                  language={config.branding.language}
+                  theme={modernTheme}
+                  onCustomerNameChange={(value) => {
+                    setCustomerName(value);
+                    setSelectedClient(null);
+                  }}
+                  onCustomerPhoneChange={(value) => {
+                    setCustomerPhone(value);
+                    setSelectedClient(null);
+                  }}
+                  onApplyClientSuggestion={applyClientSuggestion}
+                  formatClientActivity={formatClientActivity}
+                  onFlowTypeChange={(value) => {
+                    setFlowType(value);
+
+                    if (value === ServiceOrderFlowType.WALK_IN && captureIntent === "appointment") {
+                      setCaptureIntent(walkInFallbackIntent);
+                    }
+
+                    if (value === ServiceOrderFlowType.SCHEDULED && captureIntent !== "appointment") {
+                      setCaptureIntent("appointment");
+                    }
+                  }}
+                  onScheduledForChange={setScheduledFor}
+                  onToggleOptionalDetails={() =>
+                    setShowOptionalDetails((current) => !current)
+                  }
+                  onOrderNotesChange={setOrderNotes}
+                  onAssignedToUserChange={setAssignedToUserId}
+                />
+
+                <div ref={summarySectionRef}>
+                  <CaptureSummaryPanel
+                    title={
+                      captureIntent === "appointment"
+                        ? "Lo que vas a agendar"
+                        : captureIntent === "quote"
+                          ? "Lo que vas a cotizar"
+                          : "Lo que vas a cobrar"
+                    }
+                    emptyMessage={
+                      captureIntent === "appointment"
+                        ? "Selecciona al menos un servicio antes de apartar la cita."
+                        : captureIntent === "quote"
+                          ? "Selecciona al menos un concepto para preparar la cotización."
+                          : "Selecciona al menos un concepto para empezar a cobrar."
+                    }
+                    totalLabel={config.ui.labels.total || "Total"}
+                    total={total}
+                    selectedRows={selectedRows}
+                    extraRows={extraRows}
+                    manualAdjustments={manualAdjustments}
+                    currency={config.branding.currency}
+                    language={config.branding.language}
+                    theme={modernTheme}
+                    onRemoveSelectedRow={(row) => {
+                      if (row.categoryId && row.optionId) {
+                        toggleOption(row.categoryId, row.optionId);
+                      }
+                    }}
+                    onAdjustExtra={adjustExtra}
+                    onRemoveManualAdjustment={removeManualAdjustment}
+                  />
+                </div>
+
+                <CaptureSaveStep
+                  intentMode={captureIntent}
+                  intentLocked
+                  demoMode={demoMode}
+                  availableSaveIntents={availableSaveIntents}
+                  primarySaveIntent={primarySaveIntent}
+                  saveIntent={saveIntent}
+                  quoteActionLabel={quoteActionLabel}
+                  total={total}
+                  savingQuote={savingQuote}
+                  savingOrder={savingOrder}
+                  downloading={downloading}
+                  flowType={flowType}
+                  canScheduleOrders={canScheduleOrders}
+                  downloadLabel={config.ui.labels.download || "Descargar resumen"}
+                  theme={modernTheme}
+                  onSaveIntentChange={setSaveIntent}
+                  onSaveQuote={saveQuote}
+                  onSaveOrder={saveOrder}
+                  onDownloadSummary={downloadSummary}
+                  onReset={resetQuote}
+                  resetLabel={config.ui.labels.reset || "Nueva captura"}
+                />
+              </aside>
+            </div>
+          ) : null}
         </div>
       </main>
+
+      <CaptureMobileStickyBar
+        total={total}
+        totalLabel={config.ui.labels.total || "Total"}
+        currency={config.branding.currency}
+        language={config.branding.language}
+        actionLabel={primaryActionLabel}
+        itemCount={selectedRows.length + extraRows.length + manualAdjustments.length}
+        theme={modernTheme}
+        onAction={runPrimaryCaptureAction}
+        onShowTicket={() =>
+          summarySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      />
 
       {toast ? (
         <Toast

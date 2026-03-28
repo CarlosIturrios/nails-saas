@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { requireAdminPageUser } from "@/src/admin/lib/auth";
-import { QuoteConfigWizard } from "@/src/features/quote-config-admin/components/QuoteConfigWizard";
+import { QuoteConfigWizardV2 } from "@/src/features/quote-config-admin/components/QuoteConfigWizardV2";
 import {
   getOrganizationQuoteConfigView,
   listOrganizationsForQuoteConfig,
@@ -25,7 +25,7 @@ export default async function AdminQuoteConfigPage({
   if (organizations.length === 0) {
     return (
       <section className="admin-surface rounded-3xl p-6 sm:p-8">
-        <p className="admin-label text-sm font-medium">Cotizaciones</p>
+        <p className="admin-label text-sm font-medium">Configurar captura</p>
         <h1 className="admin-title mt-2 font-poppins text-3xl font-semibold text-slate-950">
           No hay organizaciones disponibles
         </h1>
@@ -48,7 +48,7 @@ export default async function AdminQuoteConfigPage({
   const initialConfig = await getOrganizationQuoteConfigView(selectedOrganizationId);
 
   return (
-    <QuoteConfigWizard
+    <QuoteConfigWizardV2
       initialConfig={initialConfig}
       organizations={organizations}
     />

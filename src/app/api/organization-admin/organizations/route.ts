@@ -11,6 +11,7 @@ import {
   initializeOrganizationQuoteConfigFromPreset,
 } from "@/src/features/quote-calculator-v2/lib/config";
 import { normalizeQuoteConfigPreset } from "@/src/features/quote-calculator-v2/lib/presets";
+import { canCreateOrganizations } from "@/src/lib/authorization";
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
       getOrganizationContextFromRequest(),
     ]);
 
-    if (context.user.role !== "ADMIN") {
+    if (!canCreateOrganizations(context.user.role)) {
       return NextResponse.json(
         { error: "Solo un administrador global puede crear organizaciones" },
         { status: 403 }
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
         memberships: {
           create: {
             userId: context.user.id,
-            role: UserOrganizationRole.ADMIN,
+            role: UserOrganizationRole.ORG_ADMIN,
           },
         },
       },

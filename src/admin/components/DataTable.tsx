@@ -19,6 +19,10 @@ interface DataTableProps<T extends { id: string }> {
   onEdit: (row: T) => void;
   onDelete: (row: T) => void;
   deletingId?: string | null;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  onCreate?: () => void;
+  createLabel?: string;
 }
 
 export default function DataTable<T extends { id: string }>({
@@ -32,6 +36,10 @@ export default function DataTable<T extends { id: string }>({
   onEdit,
   onDelete,
   deletingId,
+  emptyTitle = "No hay registros para mostrar.",
+  emptyDescription = "Cuando existan registros, aparecerán aquí con sus acciones disponibles.",
+  onCreate,
+  createLabel = "Crear registro",
 }: DataTableProps<T>) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -55,7 +63,7 @@ export default function DataTable<T extends { id: string }>({
             Anterior
           </button>
           <span className="text-center text-sm font-medium text-slate-700">
-            Pagina {page} de {totalPages}
+            Página {page} de {totalPages}
           </span>
           <button
             type="button"
@@ -77,11 +85,18 @@ export default function DataTable<T extends { id: string }>({
           <div className="border-t border-[#efe6d8] px-6 py-14">
             <div className="admin-panel flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed px-6 text-center">
               <p className="text-sm font-medium text-slate-700">
-                No hay registros para mostrar.
+                {emptyTitle}
               </p>
-              <p className="admin-muted mt-2 max-w-md text-sm">
-                Cuando existan registros, apareceran aqui con sus acciones disponibles.
-              </p>
+              <p className="admin-muted mt-2 max-w-md text-sm">{emptyDescription}</p>
+              {onCreate ? (
+                <button
+                  type="button"
+                  onClick={onCreate}
+                  className="admin-primary mt-5 px-4 py-2.5 text-sm font-semibold"
+                >
+                  {createLabel}
+                </button>
+              ) : null}
             </div>
           </div>
         ) : (
@@ -152,11 +167,18 @@ export default function DataTable<T extends { id: string }>({
         ) : showMobileEmpty ? (
           <div className="admin-panel flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed p-6 text-center">
             <p className="text-sm font-medium text-slate-700">
-              No hay registros para mostrar.
+              {emptyTitle}
             </p>
-            <p className="admin-muted mt-2 text-sm">
-              Crea el primer registro para verlo aqui.
-            </p>
+            <p className="admin-muted mt-2 text-sm">{emptyDescription}</p>
+            {onCreate ? (
+              <button
+                type="button"
+                onClick={onCreate}
+                className="admin-primary mt-5 w-full px-4 py-2.5 text-sm font-semibold sm:w-auto"
+              >
+                {createLabel}
+              </button>
+            ) : null}
           </div>
         ) : (
           rows.map((row) => (

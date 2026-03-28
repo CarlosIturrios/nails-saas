@@ -1,15 +1,9 @@
-import { redirect } from "next/navigation";
-
 import {
   requirePlatformAdminContext,
 } from "@/src/lib/organizations/context";
 
 export async function requireAdminPageUser() {
-  try {
-    return await requirePlatformAdminContext();
-  } catch {
-    redirect("/login");
-  }
+  return requirePlatformAdminContext();
 }
 
 export async function requireAdminApiUser() {
