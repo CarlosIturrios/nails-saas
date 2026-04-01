@@ -597,6 +597,7 @@ export function PendingOperationsBoard({
             { value: ServiceOrderStatus.CANCELLED, label: "Cancelada" },
           ]}
           helperText="Aquí ya no ves solo lo aceptado del día. Puedes revisar propuestas y órdenes nuevas, viejas, abiertas o cerradas según el rango que elijas."
+          exportHrefBase="/api/reports/export/pending"
         />
 
         {quickActions.length > 0 ? (

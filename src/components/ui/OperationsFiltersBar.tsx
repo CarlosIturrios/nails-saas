@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarRange, Filter, Search, X } from "lucide-react";
+import { CalendarRange, Download, Filter, Search, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -28,6 +28,8 @@ interface OperationsFiltersBarProps {
   secondaryStatusLabel?: string;
   secondaryStatusOptions?: FilterOption[];
   helperText?: string;
+  exportHrefBase?: string;
+  exportLabel?: string;
 }
 
 function presetLabel(preset: OperationsRangePreset) {
@@ -63,11 +65,19 @@ export function OperationsFiltersBar({
   secondaryStatusLabel = "Estado secundario",
   secondaryStatusOptions = [],
   helperText,
+  exportHrefBase,
+  exportLabel = "Exportar CSV",
 }: OperationsFiltersBarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [searchDraft, setSearchDraft] = useState(searchValue);
+  const currentQuery = searchParams.toString();
+  const exportHref = exportHrefBase
+    ? currentQuery
+      ? `${exportHrefBase}?${currentQuery}`
+      : exportHrefBase
+    : null;
 
   useEffect(() => {
     setSearchDraft(searchValue);
@@ -138,6 +148,15 @@ export function OperationsFiltersBar({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {exportHref ? (
+            <a
+              href={exportHref}
+              className="admin-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold"
+            >
+              <Download size={16} />
+              {exportLabel}
+            </a>
+          ) : null}
           {(["day", "week", "month", "custom", "all"] as OperationsRangePreset[]).map(
             (preset) => (
               <button

@@ -400,6 +400,7 @@ export function ServiceOrdersBoard({
       searchParamName="q"
       searchPlaceholder="Buscar por cliente, responsable o concepto"
       helperText="Usa rango, estado, responsable y búsqueda para revisar órdenes nuevas, viejas, abiertas o cerradas sin llenar toda la pantalla."
+      exportHrefBase="/api/reports/export/orders"
     />
   );
 
