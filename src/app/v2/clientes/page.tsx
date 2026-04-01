@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PlusCircle } from "lucide-react";
 
 import { CreateClientCard } from "@/src/components/clients/CreateClientCard";
 import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
@@ -103,8 +104,9 @@ export default async function V2ClientsPage() {
                       customerName: client.name,
                       customerPhone: client.phone,
                     })}
-                    className="inline-flex items-center justify-center rounded-2xl border border-[#e8dece] px-5 py-3 text-sm font-semibold text-slate-700"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#e8dece] px-5 py-3 text-sm font-semibold text-slate-700"
                   >
+                    <PlusCircle size={16} />
                     Nueva venta
                   </Link>
                 </div>

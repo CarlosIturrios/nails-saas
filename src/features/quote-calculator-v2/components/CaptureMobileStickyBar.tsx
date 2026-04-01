@@ -16,6 +16,7 @@ interface CaptureMobileStickyBarProps {
   downloadLabel: string;
   itemCount?: number;
   downloading?: boolean;
+  canShowWhenEmpty?: boolean;
   theme: QuoteCalculatorTheme;
   onAction: () => void;
   onDownloadSummary?: () => void;
@@ -30,11 +31,12 @@ export function CaptureMobileStickyBar({
   downloadLabel,
   itemCount = 0,
   downloading = false,
+  canShowWhenEmpty = false,
   theme,
   onAction,
   onDownloadSummary,
 }: CaptureMobileStickyBarProps) {
-  if (total <= 0) {
+  if (total <= 0 && !canShowWhenEmpty) {
     return null;
   }
 

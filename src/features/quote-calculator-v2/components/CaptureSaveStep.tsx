@@ -15,10 +15,13 @@ interface CaptureSaveStepProps {
   intentLocked?: boolean;
   demoMode?: boolean;
   quoteActionLabel: string;
+  orderActionLabel?: string;
+  paidActionLabel?: string;
   availableSaveIntents: CaptureSaveIntentOption[];
   primarySaveIntent: CaptureSaveIntentOption | null;
   saveIntent: SaveIntent;
   total: number;
+  canSaveWithoutConcepts?: boolean;
   savingQuote: boolean;
   savingOrder: boolean;
   downloading: boolean;
@@ -39,10 +42,13 @@ export function CaptureSaveStep({
   intentLocked = false,
   demoMode = false,
   quoteActionLabel,
+  orderActionLabel,
+  paidActionLabel,
   availableSaveIntents,
   primarySaveIntent,
   saveIntent,
   total,
+  canSaveWithoutConcepts = false,
   savingQuote,
   savingOrder,
   downloading,
@@ -65,6 +71,7 @@ export function CaptureSaveStep({
         : "Cobro";
   const isPosLayout = theme.layoutVariant !== "stacked";
   const isTouch = theme.layoutVariant === "pos_touch";
+  const saveDisabled = (!canSaveWithoutConcepts && total === 0) || savingQuote || savingOrder;
 
   if (demoMode) {
     return (
@@ -165,7 +172,7 @@ export function CaptureSaveStep({
             <button
               type="button"
               onClick={onSaveQuote}
-              disabled={total === 0 || savingQuote || savingOrder}
+              disabled={saveDisabled}
               className="admin-secondary w-full px-5 py-3 text-left text-sm font-semibold disabled:opacity-50"
             >
               <span className="flex items-center gap-3">
@@ -185,7 +192,7 @@ export function CaptureSaveStep({
             <button
               type="button"
               onClick={() => onSaveOrder(ServiceOrderStatus.CONFIRMED)}
-              disabled={total === 0 || savingOrder || savingQuote}
+              disabled={saveDisabled}
               className="admin-primary w-full px-5 py-3 text-left text-sm font-semibold disabled:opacity-50"
               style={{ background: theme.primaryButton }}
             >
@@ -199,9 +206,10 @@ export function CaptureSaveStep({
                   <span className="block">
                     {savingOrder
                       ? "Guardando..."
-                      : flowType === ServiceOrderFlowType.SCHEDULED && canScheduleOrders
-                        ? "Guardar y agendar"
-                        : "Guardar trabajo"}
+                      : orderActionLabel ||
+                        (flowType === ServiceOrderFlowType.SCHEDULED && canScheduleOrders
+                          ? "Guardar y agendar"
+                          : "Guardar trabajo")}
                   </span>
                   <span className="mt-1 block text-xs font-medium text-white/80">
                     Déjalo listo para moverlo en pendientes o agenda.
@@ -214,13 +222,15 @@ export function CaptureSaveStep({
             <button
               type="button"
               onClick={() => onSaveOrder(ServiceOrderStatus.PAID)}
-              disabled={total === 0 || savingOrder || savingQuote}
+              disabled={saveDisabled}
               className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-left text-sm font-semibold text-emerald-800 shadow-sm disabled:opacity-50"
             >
               <span className="flex items-center gap-3">
                 <CheckCircle2 size={18} />
                 <span className="flex-1">
-                  <span className="block">{savingOrder ? "Guardando..." : "Guardar y cobrar"}</span>
+                  <span className="block">
+                    {savingOrder ? "Guardando..." : paidActionLabel || "Guardar y cobrar"}
+                  </span>
                   <span className="mt-1 block text-xs font-medium text-emerald-700/80">
                     Úsalo cuando la venta o atención ya quedó cobrada.
                   </span>
@@ -313,7 +323,7 @@ export function CaptureSaveStep({
           <button
             type="button"
             onClick={onSaveQuote}
-            disabled={total === 0 || savingQuote || savingOrder}
+            disabled={saveDisabled}
             className={`w-full rounded-[24px] border px-5 text-left text-sm font-semibold disabled:opacity-50 ${isTouch ? "py-5" : "py-4"}`}
             style={{
               borderColor: theme.optionActiveBorder,
@@ -337,7 +347,7 @@ export function CaptureSaveStep({
           <button
             type="button"
             onClick={() => onSaveOrder(ServiceOrderStatus.CONFIRMED)}
-            disabled={total === 0 || savingOrder || savingQuote}
+            disabled={saveDisabled}
             className={`w-full rounded-[24px] px-5 text-left text-sm font-semibold text-white disabled:opacity-50 ${isTouch ? "py-5" : "py-4"}`}
             style={{ background: theme.primaryButton }}
           >
@@ -351,9 +361,10 @@ export function CaptureSaveStep({
                 <span className="block">
                   {savingOrder
                     ? "Guardando..."
-                    : flowType === ServiceOrderFlowType.SCHEDULED && canScheduleOrders
-                      ? "Guardar y agendar"
-                      : "Guardar trabajo"}
+                    : orderActionLabel ||
+                      (flowType === ServiceOrderFlowType.SCHEDULED && canScheduleOrders
+                        ? "Guardar y agendar"
+                        : "Guardar trabajo")}
                 </span>
                 <span className="mt-1 block text-xs font-medium text-white/75">
                   Queda listo para seguirlo hoy o en agenda.
@@ -367,7 +378,7 @@ export function CaptureSaveStep({
           <button
             type="button"
             onClick={() => onSaveOrder(ServiceOrderStatus.PAID)}
-            disabled={total === 0 || savingOrder || savingQuote}
+            disabled={saveDisabled}
             className={`w-full rounded-[24px] border px-5 text-left text-sm font-semibold text-emerald-900 disabled:opacity-50 ${isTouch ? "py-5" : "py-4"}`}
             style={{
               borderColor: "#b7e3cf",
@@ -377,7 +388,9 @@ export function CaptureSaveStep({
             <span className="flex items-start gap-3">
               <CheckCircle2 size={18} className="mt-0.5" />
               <span className="flex-1">
-                <span className="block">{savingOrder ? "Guardando..." : "Cobrar ahora"}</span>
+                <span className="block">
+                  {savingOrder ? "Guardando..." : paidActionLabel || "Cobrar ahora"}
+                </span>
                 <span className="mt-1 block text-xs font-medium text-emerald-700">
                   Cierra la venta en este momento.
                 </span>

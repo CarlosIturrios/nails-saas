@@ -7,7 +7,9 @@ import {
   CircleDollarSign,
   ClipboardList,
   Download,
+  PencilLine,
   Phone,
+  PlusCircle,
   Sparkles,
   UserRound,
   UserRoundPlus,
@@ -25,6 +27,7 @@ import {
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import { downloadQuoteImage } from "@/src/components/ui/downloadQuoteImage";
 import Toast from "@/src/components/ui/Toast";
+import { buildV2CaptureEditOrderHref } from "@/src/features/v2/routing";
 import {
   formatDate,
   serializeDateTimeForApi,
@@ -47,6 +50,7 @@ interface ServiceOrdersBoardProps {
   canScheduleOrders: boolean;
   canProgressOrders: boolean;
   canChargeOrders: boolean;
+  canEditOrderDetails?: boolean;
   orderHrefPrefix?: string;
   quoteHrefPrefix?: string;
   clientHrefPrefix?: string;
@@ -276,6 +280,7 @@ export function ServiceOrdersBoard({
   canScheduleOrders,
   canProgressOrders,
   canChargeOrders,
+  canEditOrderDetails = false,
   orderHrefPrefix = "/ordenes",
   quoteHrefPrefix = "/propuestas",
   clientHrefPrefix = "/clientes",
@@ -370,6 +375,32 @@ export function ServiceOrdersBoard({
       unassigned: filteredOrders.filter((order) => !order.assignedToUserId).length,
     }),
     [filteredOrders]
+  );
+  const ordersFiltersBar = (
+    <OperationsFiltersBar
+      rangePreset={rangePreset}
+      anchorDate={anchorDate}
+      from={rangeFrom}
+      to={rangeTo}
+      statusValue={statusFilter}
+      statusParamName="status"
+      statusLabel="Estado de la orden"
+      statusOptions={[
+        { value: "all", label: "Todos los estados" },
+        { value: "open", label: "Abiertas" },
+        { value: "closed", label: "Cerradas" },
+        { value: ServiceOrderStatus.DRAFT, label: "Borrador" },
+        { value: ServiceOrderStatus.CONFIRMED, label: "Pendiente" },
+        { value: ServiceOrderStatus.IN_PROGRESS, label: "En proceso" },
+        { value: ServiceOrderStatus.COMPLETED, label: "Terminada" },
+        { value: ServiceOrderStatus.PAID, label: "Pagada" },
+        { value: ServiceOrderStatus.CANCELLED, label: "Cancelada" },
+      ]}
+      searchValue={searchQuery}
+      searchParamName="q"
+      searchPlaceholder="Buscar por cliente, responsable o concepto"
+      helperText="Usa rango, estado, responsable y búsqueda para revisar órdenes nuevas, viejas, abiertas o cerradas sin llenar toda la pantalla."
+    />
   );
 
   async function updateStatus(orderId: string, status: ServiceOrderStatus) {
@@ -516,41 +547,25 @@ export function ServiceOrdersBoard({
 
   if (orders.length === 0) {
     return (
-      <section className="admin-surface rounded-3xl p-6 sm:p-8">
-        <p className="text-sm font-medium text-slate-700">No hay órdenes registradas hoy.</p>
-        <p className="admin-muted mt-2 text-sm leading-6">
-          Usa el cotizador para guardar la primera orden operativa del día.
-        </p>
-      </section>
+      <>
+        {ordersFiltersBar}
+
+        <section className="admin-surface rounded-3xl p-6 sm:p-8">
+          <p className="text-sm font-medium text-slate-700">
+            No hay órdenes registradas para este rango.
+          </p>
+          <p className="admin-muted mt-2 text-sm leading-6">
+            Cambia el rango para revisar otro día, semana o periodo, o usa el cotizador para
+            guardar la primera orden.
+          </p>
+        </section>
+      </>
     );
   }
 
   return (
     <>
-      <OperationsFiltersBar
-        rangePreset={rangePreset}
-        anchorDate={anchorDate}
-        from={rangeFrom}
-        to={rangeTo}
-        statusValue={statusFilter}
-        statusParamName="status"
-        statusLabel="Estado de la orden"
-        statusOptions={[
-          { value: "all", label: "Todos los estados" },
-          { value: "open", label: "Abiertas" },
-          { value: "closed", label: "Cerradas" },
-          { value: ServiceOrderStatus.DRAFT, label: "Borrador" },
-          { value: ServiceOrderStatus.CONFIRMED, label: "Pendiente" },
-          { value: ServiceOrderStatus.IN_PROGRESS, label: "En proceso" },
-          { value: ServiceOrderStatus.COMPLETED, label: "Terminada" },
-          { value: ServiceOrderStatus.PAID, label: "Pagada" },
-          { value: ServiceOrderStatus.CANCELLED, label: "Cancelada" },
-        ]}
-        searchValue={searchQuery}
-        searchParamName="q"
-        searchPlaceholder="Buscar por cliente, responsable o concepto"
-        helperText="Usa rango, estado, responsable y búsqueda para revisar órdenes nuevas, viejas, abiertas o cerradas sin llenar toda la pantalla."
-      />
+      {ordersFiltersBar}
 
       <section className="ops-card p-6 sm:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -750,10 +765,20 @@ export function ServiceOrdersBoard({
                     <div className="mt-5 flex flex-col gap-3">
                       <Link
                         href={buildNewSaleHref(order, newSaleHrefBase)}
-                        className="admin-secondary inline-flex w-full items-center justify-center px-5 py-3 text-sm font-semibold"
+                        className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-sm font-semibold"
                       >
+                        <PlusCircle size={16} />
                         Nueva venta con este cliente
                       </Link>
+                      {canEditOrderDetails ? (
+                        <Link
+                          href={buildV2CaptureEditOrderHref(order.id)}
+                          className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-sm font-semibold"
+                        >
+                          <PencilLine size={16} />
+                          Editar detalle
+                        </Link>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => void downloadOrderQuote(order)}

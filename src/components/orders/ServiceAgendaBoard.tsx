@@ -15,9 +15,11 @@ import {
   Wrench,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
-import { DownloadQuoteImageButton } from "@/src/components/ui/DownloadQuoteImageButton";
+import { ServiceOrderActionsPanel } from "@/src/components/orders/ServiceOrderActionsPanel";
+import { AccountBreakdownCard } from "@/src/components/ui/AccountBreakdownCard";
+import { buildV2CaptureEditOrderHref } from "@/src/features/v2/routing";
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import { ActionHint, StatusBadge } from "@/src/components/ui/OperationsUI";
 import Toast from "@/src/components/ui/Toast";
@@ -26,13 +28,7 @@ import {
   formatDate,
   getTodayInTimezone,
   getUtcTimestamp,
-  serializeDateTimeForApi,
-  toDatetimeLocalValue,
 } from "@/src/lib/dates";
-import {
-  canRescheduleServiceOrderStatus,
-  getServiceOrderRescheduleBlockedReason,
-} from "@/src/lib/service-order-rules";
 
 interface ServiceAgendaBoardProps {
   locale: string;
@@ -41,6 +37,7 @@ interface ServiceAgendaBoardProps {
   canScheduleOrders: boolean;
   canProgressOrders: boolean;
   canChargeOrders: boolean;
+  canEditOrderDetails?: boolean;
   orderHrefPrefix?: string;
   quoteHrefPrefix?: string;
   clientHrefPrefix?: string;
@@ -115,14 +112,6 @@ function formatTime(value: string | null, locale: string, timeZone: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function toDatetimeLocal(value: string | null, timeZone: string) {
-  if (!value) {
-    return "";
-  }
-
-  return toDatetimeLocalValue(value, timeZone);
 }
 
 function getNextStatus(status: ServiceOrderStatus) {
@@ -443,26 +432,6 @@ function AgendaMetaRow({
   );
 }
 
-function buildAgendaOrderNewSaleHref(
-  order: ServiceAgendaBoardProps["orders"][number],
-  newSaleHrefBase: string
-) {
-  const params = new URLSearchParams();
-
-  if (order.clientId) {
-    params.set("clientId", order.clientId);
-  }
-  if (order.customerName) {
-    params.set("customerName", order.customerName);
-  }
-  if (order.customerPhone) {
-    params.set("customerPhone", order.customerPhone);
-  }
-  params.set("intent", "order");
-
-  return `${newSaleHrefBase}?${params.toString()}`;
-}
-
 export function ServiceAgendaBoard({
   locale,
   timeZone,
@@ -470,6 +439,7 @@ export function ServiceAgendaBoard({
   canScheduleOrders,
   canProgressOrders,
   canChargeOrders,
+  canEditOrderDetails = false,
   orderHrefPrefix = "/ordenes",
   quoteHrefPrefix = "/propuestas",
   clientHrefPrefix = "/clientes",
@@ -484,32 +454,11 @@ export function ServiceAgendaBoard({
   const getClientHref = (clientId: string) => `${clientHrefPrefix}/${clientId}`;
   const router = useRouter();
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
-  const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({});
   const [selectedAssignee, setSelectedAssignee] = useState("all");
-  const [scheduleValues, setScheduleValues] = useState<Record<string, string>>(
-    () =>
-      Object.fromEntries(
-        orders.map((order) => [order.id, toDatetimeLocal(order.scheduledFor, timeZone)])
-      )
-  );
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
-  const [assignmentValues, setAssignmentValues] = useState<Record<string, string>>(
-    () => Object.fromEntries(orders.map((order) => [order.id, order.assignedToUserId ?? ""]))
-  );
-
-  useEffect(() => {
-    setScheduleValues(
-      Object.fromEntries(
-        orders.map((order) => [order.id, toDatetimeLocal(order.scheduledFor, timeZone)])
-      )
-    );
-    setAssignmentValues(
-      Object.fromEntries(orders.map((order) => [order.id, order.assignedToUserId ?? ""]))
-    );
-  }, [orders, timeZone]);
 
   const filteredOrders = useMemo(() => {
     if (selectedAssignee === "all") {
@@ -633,91 +582,6 @@ export function ServiceAgendaBoard({
     }
   }
 
-  async function updateSchedule(orderId: string) {
-    setPendingOrderId(orderId);
-
-    try {
-      const response = await fetch(`/api/service-orders/${orderId}/schedule`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scheduledFor: serializeDateTimeForApi(scheduleValues[orderId] || null, timeZone),
-        }),
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          getApiErrorMessage({
-            status: response.status,
-            payloadError: payload.error,
-            fallback: "No se pudo reprogramar la orden",
-            permissionAction: "schedule_order",
-          })
-        );
-      }
-
-      setToast({
-        message: "Horario actualizado correctamente",
-        type: "success",
-      });
-      router.refresh();
-    } catch (error) {
-      setToast({
-        message: error instanceof Error ? error.message : "Error inesperado",
-        type: "error",
-      });
-    } finally {
-      setPendingOrderId(null);
-    }
-  }
-
-  async function updateAssignment(orderId: string) {
-    setPendingOrderId(orderId);
-
-    try {
-      const response = await fetch(`/api/service-orders/${orderId}/assignment`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assignedToUserId: assignmentValues[orderId] || null,
-        }),
-      });
-      const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          getApiErrorMessage({
-            status: response.status,
-            payloadError: payload.error,
-            fallback: "No se pudo asignar responsable",
-            permissionAction: "schedule_order",
-          })
-        );
-      }
-
-      setToast({
-        message: "Responsable actualizado correctamente",
-        type: "success",
-      });
-      router.refresh();
-    } catch (error) {
-      setToast({
-        message: error instanceof Error ? error.message : "Error inesperado",
-        type: "error",
-      });
-    } finally {
-      setPendingOrderId(null);
-    }
-  }
-
-  function toggleDetails(orderId: string) {
-    setExpandedOrderIds((current) => ({
-      ...current,
-      [orderId]: !current[orderId],
-    }));
-  }
-
   function goToDate(date: string) {
     router.push(`${agendaBasePath}?date=${date}`);
   }
@@ -726,15 +590,6 @@ export function ServiceAgendaBoard({
   const selectedDayLabel = formatSelectedDay(selectedDate, locale);
 
   function renderOrderCard(order: ServiceAgendaBoardProps["orders"][number]) {
-    const nextStatus = getNextStatus(order.status);
-    const nextActionLabel = getNextActionLabel(order.status);
-    const canMoveOrder =
-      nextStatus === ServiceOrderStatus.PAID ? canChargeOrders : canProgressOrders;
-    const hasDetails = expandedOrderIds[order.id];
-    const canReschedule = canRescheduleServiceOrderStatus(order.status);
-    const rescheduleBlockedReason = getServiceOrderRescheduleBlockedReason(order.status);
-    const hasScheduleValue = Boolean(scheduleValues[order.id]?.trim());
-
     return (
       <article key={order.id} className="admin-surface rounded-[28px] p-6 sm:p-8">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
@@ -815,185 +670,37 @@ export function ServiceAgendaBoard({
           </div>
 
           <div className="xl:w-[320px] xl:max-w-[320px]">
-            <div className="rounded-[24px] border border-[#efe6d8] bg-[#fffdfa] p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Total del trabajo
-              </p>
-              <p className="mt-3 font-poppins text-3xl font-semibold text-slate-950">
-                {formatMoney(order.total, order.currency, locale)}
-              </p>
-
-              <div className="mt-5 flex flex-col gap-3">
-                {nextStatus && nextActionLabel && canMoveOrder ? (
-                  <button
-                    type="button"
-                    onClick={() => updateStatus(order.id, nextStatus)}
-                    disabled={pendingOrderId === order.id}
-                    className="admin-primary w-full px-5 py-3 text-sm font-semibold disabled:opacity-60"
-                  >
-                    {pendingOrderId === order.id ? "Actualizando..." : nextActionLabel}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => toggleDetails(order.id)}
-                  className="admin-secondary w-full px-5 py-3 text-sm font-semibold"
-                >
-                  {hasDetails ? "Ocultar ajustes" : "Ver ajustes rápidos"}
-                </button>
-                {(order.clientId || order.customerName || order.customerPhone) ? (
-                  <Link
-                    href={buildAgendaOrderNewSaleHref(order, newSaleHrefBase)}
-                    className="admin-secondary inline-flex w-full items-center justify-center px-5 py-3 text-sm font-semibold"
-                  >
-                    Nueva venta
-                  </Link>
-                ) : null}
-                <DownloadQuoteImageButton
-                  branding={printBranding}
-                  title={printBranding.title}
-                  subtitle={printBranding.subtitle}
-                  totalLabel={printBranding.totalLabel}
-                  total={order.total}
-                  items={order.items.map((item) => ({
-                    label: item.label,
-                    amount: item.total,
-                  }))}
-                  isLegacyTemplate={printBranding.isLegacyTemplate}
-                  label={printBranding.downloadLabel || "Descargar cotización"}
-                  className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-5 py-3 text-sm font-semibold"
-                />
-              </div>
-            </div>
+            <ServiceOrderActionsPanel
+              locale={locale}
+              timeZone={timeZone}
+              order={order}
+              canScheduleOrders={canScheduleOrders}
+              canProgressOrders={canProgressOrders}
+              canChargeOrders={canChargeOrders}
+              assignableUsers={assignableUsers}
+              printBranding={printBranding}
+              newSaleHrefBase={newSaleHrefBase}
+              editHref={canEditOrderDetails ? buildV2CaptureEditOrderHref(order.id) : null}
+            />
           </div>
         </div>
 
-        {hasDetails ? (
-          <>
-            <div className="mt-5 rounded-[24px] border border-[#efe6d8] bg-[#fffdfa] p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[var(--ops-primary)] ring-1 ring-[#efe6d8]">
-                    <UserRoundPlus size={18} />
-                  </span>
-                  <div>
-                    <p className="admin-label text-xs font-semibold uppercase tracking-[0.14em]">
-                      Ajustes rápidos
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Reprograma órdenes no iniciadas o ajusta responsable sin salir de esta tarjeta.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              {canScheduleOrders ? (
-                <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-end">
-                  <label className="space-y-2">
-                    <span className="admin-label block text-sm font-medium">
-                      {order.scheduledFor ? "Mover horario" : "Poner horario"}
-                    </span>
-                    <input
-                      type="datetime-local"
-                      value={scheduleValues[order.id] ?? ""}
-                      onChange={(event) =>
-                        setScheduleValues((current) => ({
-                          ...current,
-                          [order.id]: event.target.value,
-                        }))
-                      }
-                      disabled={!canReschedule || pendingOrderId === order.id}
-                      className="admin-input w-full px-4 py-3 text-sm"
-                    />
-                  </label>
-                  <label className="space-y-2">
-                    <span className="admin-label block text-sm font-medium">Responsable</span>
-                    <select
-                      value={assignmentValues[order.id] ?? ""}
-                      onChange={(event) =>
-                        setAssignmentValues((current) => ({
-                          ...current,
-                          [order.id]: event.target.value,
-                        }))
-                      }
-                      className="admin-input w-full px-4 py-3 text-sm"
-                    >
-                      <option value="">Sin asignar</option>
-                      {assignableUsers.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name || user.email}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
-                    <button
-                      type="button"
-                      onClick={() => updateSchedule(order.id)}
-                      disabled={
-                        pendingOrderId === order.id || !canReschedule || !hasScheduleValue
-                      }
-                      className="admin-secondary w-full px-5 py-3 text-sm font-semibold disabled:opacity-60"
-                    >
-                      {pendingOrderId === order.id
-                        ? "Guardando..."
-                        : order.scheduledFor
-                          ? "Reprogramar"
-                          : "Pasar a agenda"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateAssignment(order.id)}
-                      disabled={pendingOrderId === order.id}
-                      className="admin-secondary w-full px-5 py-3 text-sm font-semibold disabled:opacity-60"
-                    >
-                      {pendingOrderId === order.id ? "Guardando..." : "Guardar responsable"}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-              {!canScheduleOrders ? (
-                <p className="mt-4 text-sm leading-6 text-slate-600">
-                  Tu perfil puede mover el trabajo, pero no cambiar horario ni responsable.
-                </p>
-              ) : (
-                <p className="mt-4 text-sm leading-6 text-slate-600">
-                  {canReschedule
-                    ? "Solo se pueden reprogramar órdenes que todavía no empiezan."
-                    : rescheduleBlockedReason}
-                </p>
-              )}
-            </div>
-
-            <div className="mt-5 rounded-[24px] border border-[#efe6d8] bg-[#fffdfa] p-5">
-              <div className="flex items-start gap-3">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-[var(--ops-primary)] ring-1 ring-[#efe6d8]">
-                  <Wrench size={18} />
-                </span>
-                <div className="min-w-0">
-                  <p className="admin-label text-xs font-semibold uppercase tracking-[0.14em]">
-                    Lo incluido
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Conceptos que forman este trabajo.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 space-y-2">
-                {order.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start justify-between gap-3 rounded-2xl border border-[#efe6d8] bg-white px-4 py-3"
-                  >
-                    <span className="text-sm text-slate-700">{item.label}</span>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {formatMoney(item.total, order.currency, locale)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : null}
+        <div className="mt-5">
+          <AccountBreakdownCard
+            locale={locale}
+            currency={order.currency}
+            total={order.total}
+            items={order.items.map((item) => ({
+              id: item.id,
+              label: item.label,
+              amount: item.total,
+            }))}
+            title="Lo que incluye esta orden"
+            description="Mantén el total visible y abre este bloque solo cuando quieras revisar servicios, extras o ajustes."
+            detailTitle="Ver servicios, extras y ajustes"
+            detailDescription="Aquí se muestra el desglose completo ligado a esta orden."
+          />
+        </div>
       </article>
     );
   }

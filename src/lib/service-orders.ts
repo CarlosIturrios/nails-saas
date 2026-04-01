@@ -47,6 +47,22 @@ export interface CreateServiceOrderFromQuoteInput {
   items: CreateServiceOrderItemInput[];
 }
 
+export interface UpdateServiceOrderInput {
+  organizationId: string;
+  serviceOrderId: string;
+  clientId?: string | null;
+  assignedToUserId?: string | null;
+  flowType: ServiceOrderFlowType;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  notes?: string | null;
+  scheduledFor?: string | null;
+  timeZone?: string | null;
+  currency: string;
+  snapshot?: Record<string, unknown> | null;
+  items: CreateServiceOrderItemInput[];
+}
+
 function toInputJson(
   value: Record<string, unknown> | null | undefined
 ): Prisma.InputJsonValue | typeof Prisma.JsonNull {
@@ -129,10 +145,8 @@ async function resolveAssignedUserForOrder(input: {
   return membership.userId;
 }
 
-export async function createServiceOrderFromQuote(
-  input: CreateServiceOrderFromQuoteInput
-) {
-  const items = input.items
+function normalizeServiceOrderItems(items: CreateServiceOrderItemInput[]) {
+  return items
     .map((item, index) => {
       const quantity = normalizeQuantity(item.quantity);
       const unitPrice = normalizeMoney(item.unitPrice);
@@ -150,8 +164,14 @@ export async function createServiceOrderFromQuote(
       };
     })
     .filter((item) => item.label.length > 0 && item.total > 0);
+}
 
-  if (items.length === 0) {
+export async function createServiceOrderFromQuote(
+  input: CreateServiceOrderFromQuoteInput
+) {
+  const items = normalizeServiceOrderItems(input.items);
+
+  if (items.length === 0 && input.flowType !== ServiceOrderFlowType.SCHEDULED) {
     throw new Error("Agrega al menos un concepto antes de guardar la orden");
   }
 
@@ -197,6 +217,106 @@ export async function createServiceOrderFromQuote(
       items: {
         orderBy: {
           sortOrder: "asc",
+        },
+      },
+    },
+  });
+}
+
+export async function updateServiceOrder(
+  input: UpdateServiceOrderInput
+) {
+  const order = await prisma.serviceOrder.findFirst({
+    where: {
+      id: input.serviceOrderId,
+      organizationId: input.organizationId,
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (!order) {
+    throw new Error("La orden no existe o no pertenece a tu organización");
+  }
+
+  const items = normalizeServiceOrderItems(input.items);
+
+  if (items.length === 0 && input.flowType !== ServiceOrderFlowType.SCHEDULED) {
+    throw new Error("Agrega al menos un concepto antes de actualizar la orden");
+  }
+
+  const clientId = await resolveClientForCapture({
+    organizationId: input.organizationId,
+    clientId: input.clientId,
+    customerName: input.customerName,
+    customerPhone: input.customerPhone,
+  });
+  const assignedToUserId = await resolveAssignedUserForOrder({
+    organizationId: input.organizationId,
+    assignedToUserId: input.assignedToUserId,
+  });
+  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+  const total = subtotal;
+
+  return prisma.serviceOrder.update({
+    where: {
+      id: input.serviceOrderId,
+    },
+    data: {
+      clientId,
+      assignedToUserId,
+      flowType: input.flowType,
+      customerName: input.customerName?.trim() || null,
+      customerPhone: input.customerPhone?.trim() || null,
+      notes: input.notes?.trim() || null,
+      scheduledFor:
+        input.flowType === ServiceOrderFlowType.SCHEDULED
+          ? parseNullableToUTC(input.scheduledFor, input.timeZone ?? undefined)
+          : null,
+      subtotal,
+      total,
+      currency: input.currency.trim() || "MXN",
+      snapshot: toInputJson(input.snapshot ?? null),
+      items: {
+        deleteMany: {},
+        create: items,
+      },
+    },
+    include: {
+      items: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+      client: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+        },
+      },
+      createdBy: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      assignedTo: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      sourceQuote: {
+        select: {
+          id: true,
+          status: true,
+          clientId: true,
         },
       },
     },

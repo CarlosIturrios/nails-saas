@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { ServiceOrderStatus } from "@prisma/client";
 
+import { ServiceOrderActionsPanel } from "@/src/components/orders/ServiceOrderActionsPanel";
 import {
   StatCard,
   StatusBadge,
 } from "@/src/components/ui/OperationsUI";
+import { buildV2CaptureEditOrderHref } from "@/src/features/v2/routing";
 import { formatDate } from "@/src/lib/dates";
 
 interface ResponsibleDashboardBoardProps {
@@ -14,6 +16,31 @@ interface ResponsibleDashboardBoardProps {
   currentUserId: string;
   orderHrefPrefix?: string;
   clientHrefPrefix?: string;
+  newSaleHrefBase?: string;
+  printBranding: {
+    businessName: string;
+    organizationName: string;
+    logoUrl?: string | null;
+    primaryColor?: string | null;
+    secondaryColor?: string | null;
+    currency: string;
+    language: string;
+    title: string;
+    subtitle?: string | null;
+    totalLabel?: string | null;
+    downloadLabel?: string | null;
+    isLegacyTemplate?: boolean;
+  };
+  canScheduleOrders: boolean;
+  canProgressOrders: boolean;
+  canChargeOrders: boolean;
+  canEditOrderDetails?: boolean;
+  assignableUsers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
   overall: {
     totalOrders: number;
     assignedOrders: number;
@@ -37,10 +64,20 @@ interface ResponsibleDashboardBoardProps {
       id: string;
       clientId: string | null;
       customerName: string | null;
+      customerPhone: string | null;
       total: number;
       currency: string;
       status: ServiceOrderStatus;
-      scheduledFor: Date | null;
+      scheduledFor: string | null;
+      sourceQuoteId: string | null;
+      notes: string | null;
+      assignedToName: string | null;
+      assignedToUserId: string | null;
+      items: Array<{
+        id?: string | null;
+        label: string;
+        total: number;
+      }>;
     }>;
   }>;
 }
@@ -62,7 +99,7 @@ function formatMoney(value: number, currency: string, locale: string) {
   }).format(value);
 }
 
-function formatDateTime(value: Date | null, locale: string, timeZone: string) {
+function formatDateTime(value: string | null, locale: string, timeZone: string) {
   if (!value) {
     return "Atención inmediata";
   }
@@ -82,6 +119,13 @@ export function ResponsibleDashboardBoard({
   currentUserId,
   orderHrefPrefix = "/ordenes",
   clientHrefPrefix = "/clientes",
+  newSaleHrefBase = "/capturar",
+  printBranding,
+  canScheduleOrders,
+  canProgressOrders,
+  canChargeOrders,
+  canEditOrderDetails = false,
+  assignableUsers,
   overall,
   groups,
 }: ResponsibleDashboardBoardProps) {
@@ -198,9 +242,26 @@ export function ResponsibleDashboardBoard({
                       {formatDateTime(order.scheduledFor, locale, timeZone)}
                     </p>
                   </div>
-                  <span className="text-sm font-semibold text-slate-950">
-                    {formatMoney(order.total, order.currency, locale)}
-                  </span>
+                  <div className="flex w-full max-w-[280px] flex-col gap-3">
+                    <span className="text-sm font-semibold text-slate-950">
+                      {formatMoney(order.total, order.currency, locale)}
+                    </span>
+                    <ServiceOrderActionsPanel
+                      locale={locale}
+                      timeZone={timeZone}
+                      order={order}
+                      canScheduleOrders={canScheduleOrders}
+                      canProgressOrders={canProgressOrders}
+                      canChargeOrders={canChargeOrders}
+                      assignableUsers={assignableUsers}
+                      printBranding={printBranding}
+                      newSaleHrefBase={newSaleHrefBase}
+                      editHref={
+                        canEditOrderDetails ? buildV2CaptureEditOrderHref(order.id) : null
+                      }
+                      collapsed
+                    />
+                  </div>
                 </div>
               ))}
             </div>

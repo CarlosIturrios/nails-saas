@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { QuoteStatus, ServiceOrderStatus } from "@prisma/client";
+import { PencilLine } from "lucide-react";
 
+import { ServiceOrderActionsPanel } from "@/src/components/orders/ServiceOrderActionsPanel";
 import { AccountBreakdownCard } from "@/src/components/ui/AccountBreakdownCard";
 import { DownloadQuoteImageButton } from "@/src/components/ui/DownloadQuoteImageButton";
 import { QuickLinkCard, StatCard, StatusBadge } from "@/src/components/ui/OperationsUI";
@@ -10,13 +12,20 @@ import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo
 import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import {
   V2_ROUTES,
+  buildV2CaptureEditOrderHref,
+  buildV2CaptureEditQuoteHref,
   buildV2NewSaleHref,
   getV2OrderHref,
   getV2QuoteHref,
 } from "@/src/features/v2/routing";
 import { formatDate } from "@/src/lib/dates";
+import {
+  canManageOrganization,
+  getOperationalFrontendAccess,
+} from "@/src/lib/authorization";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
 import { getClientCommercialHistory } from "@/src/lib/quotes";
+import { listAssignableUsersForOrganization } from "@/src/lib/service-orders";
 
 interface V2ClientHistoryPageProps {
   params: Promise<{ id: string }>;
@@ -65,9 +74,21 @@ export default async function V2ClientHistoryPage({ params }: V2ClientHistoryPag
   const [{ id }, context] = await Promise.all([params, requireCurrentOrganization()]);
   const timeZone =
     context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
+  const access = getOperationalFrontendAccess(
+    context.user.role,
+    context.currentOrganizationRole,
+    context.currentOrganizationPermissionProfile
+  );
+  const canEditExistingRecords = canManageOrganization(
+    context.user.role,
+    context.currentOrganizationRole
+  );
 
   let client;
-  const quoteConfig = await getOrganizationQuoteConfigView(context.currentOrganizationId);
+  const [quoteConfig, assignableUsers] = await Promise.all([
+    getOrganizationQuoteConfigView(context.currentOrganizationId),
+    listAssignableUsersForOrganization(context.currentOrganizationId),
+  ]);
 
   try {
     client = await getClientCommercialHistory(context.currentOrganizationId, id);
@@ -177,6 +198,18 @@ export default async function V2ClientHistoryPage({ params }: V2ClientHistoryPag
               </div>
 
               <div className="mt-4">
+                {canEditExistingRecords ? (
+                  <Link
+                    href={buildV2CaptureEditQuoteHref(quote.id)}
+                    className="admin-secondary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                  >
+                    <PencilLine size={16} />
+                    Editar detalle
+                  </Link>
+                ) : null}
+              </div>
+
+              <div className="mt-4">
                 <DownloadQuoteImageButton
                   branding={printBranding}
                   title={quoteConfig.ui.titles.calculatorTitle || `Cotizacion ${quoteConfig.branding.businessName}`}
@@ -240,15 +273,49 @@ export default async function V2ClientHistoryPage({ params }: V2ClientHistoryPag
             </div>
 
             <div className="mt-4">
-              <DownloadQuoteImageButton
-                branding={printBranding}
-                title={quoteConfig.ui.titles.calculatorTitle || `Cotizacion ${quoteConfig.branding.businessName}`}
-                subtitle={quoteConfig.ui.titles.calculatorSubtitle || "Resumen de servicios y extras"}
-                totalLabel={quoteConfig.ui.labels.total || "Total"}
-                total={order.total}
-                items={order.items.map((item) => ({ label: item.label, amount: item.total }))}
-                isLegacyTemplate={quoteConfig.branding.quoteTemplate === "legacy_gica"}
-                label={quoteConfig.ui.labels.download || "Descargar cotizacion"}
+              <ServiceOrderActionsPanel
+                locale="es-MX"
+                timeZone={timeZone}
+                order={{
+                  id: order.id,
+                  clientId: client.id,
+                  sourceQuoteId: order.sourceQuoteId ?? null,
+                  status: order.status,
+                  customerName: order.customerName ?? client.name,
+                  customerPhone:
+                    order.customerPhone ??
+                    (client.phone && client.phone !== "SIN_TELEFONO" ? client.phone : null),
+                  notes: order.notes,
+                  scheduledFor: order.scheduledFor?.toISOString() ?? null,
+                  total: order.total,
+                  currency: order.currency,
+                  assignedToUserId: order.assignedToUserId ?? null,
+                  items: order.items.map((item) => ({
+                    id: item.id,
+                    label: item.label,
+                    total: item.total,
+                  })),
+                }}
+                canScheduleOrders={access.canScheduleOrders}
+                canProgressOrders={access.canProgressOrders}
+                canChargeOrders={access.canChargeOrders}
+                assignableUsers={assignableUsers}
+                printBranding={{
+                  ...printBranding,
+                  title:
+                    quoteConfig.ui.titles.calculatorTitle ||
+                    `Cotizacion ${quoteConfig.branding.businessName}`,
+                  subtitle:
+                    quoteConfig.ui.titles.calculatorSubtitle || "Resumen de servicios y extras",
+                  totalLabel: quoteConfig.ui.labels.total || "Total",
+                  downloadLabel: quoteConfig.ui.labels.download || "Descargar cotizacion",
+                  isLegacyTemplate: quoteConfig.branding.quoteTemplate === "legacy_gica",
+                }}
+                newSaleHrefBase={V2_ROUTES.capture}
+                editHref={
+                  canEditExistingRecords ? buildV2CaptureEditOrderHref(order.id) : null
+                }
+                collapsed
               />
             </div>
 

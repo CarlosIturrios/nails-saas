@@ -8,7 +8,10 @@ import { V2_ROUTES } from "@/src/features/v2/routing";
 import { getIndustryPresentation } from "@/src/features/v2/presentation";
 import { normalizeCalendarDateParam, parseCalendarDateAtMidday } from "@/src/lib/dates";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
-import { getOperationalFrontendAccess } from "@/src/lib/authorization";
+import {
+  canManageOrganization,
+  getOperationalFrontendAccess,
+} from "@/src/lib/authorization";
 import {
   listAssignableUsersForOrganization,
   listServiceOrdersForOrganization,
@@ -27,6 +30,10 @@ export default async function V2AgendaPage({ searchParams }: V2AgendaPageProps) 
     context.user.role,
     context.currentOrganizationRole,
     context.currentOrganizationPermissionProfile
+  );
+  const canEditOrderDetails = canManageOrganization(
+    context.user.role,
+    context.currentOrganizationRole
   );
 
   if (!access.canUseAgenda) {
@@ -87,6 +94,7 @@ export default async function V2AgendaPage({ searchParams }: V2AgendaPageProps) 
         canScheduleOrders={access.canScheduleOrders}
         canProgressOrders={access.canProgressOrders}
         canChargeOrders={access.canChargeOrders}
+        canEditOrderDetails={canEditOrderDetails}
         assignableUsers={assignableUsers}
         orders={orders.map((order) => ({
           id: order.id,

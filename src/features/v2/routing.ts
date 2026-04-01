@@ -86,6 +86,18 @@ export function buildV2NewSaleHref(params: {
   return query ? `${V2_ROUTES.capture}?${query}` : V2_ROUTES.capture;
 }
 
+export function buildV2CaptureEditQuoteHref(quoteId: string) {
+  return buildRouteWithSearch(V2_ROUTES.capture, {
+    editQuoteId: quoteId,
+  });
+}
+
+export function buildV2CaptureEditOrderHref(orderId: string) {
+  return buildRouteWithSearch(V2_ROUTES.capture, {
+    editOrderId: orderId,
+  });
+}
+
 export function buildRouteWithSearch(
   basePath: string,
   params: Record<string, string | null | undefined>
