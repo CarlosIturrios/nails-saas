@@ -338,6 +338,7 @@ export function QuotesBoard({
       searchParamName="q"
       searchPlaceholder="Buscar por cliente, teléfono o concepto"
       helperText="Usa rango, estado y búsqueda para revisar propuestas nuevas, antiguas, abiertas o ya cerradas sin saturar la vista."
+      exportHrefBase="/api/reports/export/quotes"
     />
   );
 
