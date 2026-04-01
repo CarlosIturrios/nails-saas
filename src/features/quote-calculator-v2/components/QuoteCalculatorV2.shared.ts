@@ -1,4 +1,8 @@
 import type { ReactNode } from "react";
+import type {
+  ServiceOrderFlowType,
+  ServiceOrderStatus,
+} from "@prisma/client";
 
 import type {
   ExtraCaptureMode,
@@ -58,12 +62,33 @@ export interface CaptureSaveIntentOption {
   icon: ReactNode;
 }
 
+export interface CaptureSnapshotSelectedRow {
+  id?: string;
+  categoryId?: string;
+  optionId?: string;
+  label: string;
+  amount: number;
+}
+
 export interface CaptureSelectedRow {
   id: string;
   categoryId?: string;
   optionId?: string;
   label: string;
   amount: number;
+}
+
+export interface CaptureSnapshotExtraRow {
+  id: string;
+  label: string;
+  amount: number;
+  pricingType: "FIXED" | "PER_UNIT";
+  quantity: number;
+  billableQuantity: number;
+  includedQuantity: number;
+  captureMode: ExtraCaptureMode;
+  displayGroup: ExtraDisplayGroup;
+  unitLabel: string;
 }
 
 export interface CaptureExtraRow {
@@ -77,6 +102,29 @@ export interface CaptureExtraRow {
   captureMode: ExtraCaptureMode;
   displayGroup: ExtraDisplayGroup;
   unitLabel: string;
+}
+
+export interface CapturePersistedItem {
+  itemType: "SERVICE" | "EXTRA" | "ADJUSTMENT";
+  label: string;
+  quantity: number;
+  total: number;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CaptureEditContext {
+  mode: "quote" | "order";
+  entityId: string;
+  clientId?: string | null;
+  customerName?: string;
+  customerPhone?: string;
+  notes?: string;
+  assignedToUserId?: string | null;
+  flowType: ServiceOrderFlowType;
+  scheduledFor?: string | null;
+  status?: ServiceOrderStatus | null;
+  snapshot?: Record<string, unknown> | null;
+  items: CapturePersistedItem[];
 }
 
 export function formatMoney(value: number, currency: string, language: string) {

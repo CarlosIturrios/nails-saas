@@ -41,6 +41,21 @@ export interface CreatePersistentQuoteInput {
   items: CreateQuoteItemInput[];
 }
 
+export interface UpdatePersistentQuoteInput {
+  organizationId: string;
+  quoteId: string;
+  clientId?: string | null;
+  flowType: ServiceOrderFlowType;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  notes?: string | null;
+  scheduledFor?: string | null;
+  timeZone?: string | null;
+  currency: string;
+  snapshot?: Record<string, unknown> | null;
+  items: CreateQuoteItemInput[];
+}
+
 interface ConvertQuoteToServiceOrderOptions {
   assignedToUserId?: string | null;
   scheduledFor?: string | null;
@@ -121,8 +136,8 @@ function buildQuoteStatusUpdate(
   }
 }
 
-export async function createPersistentQuote(input: CreatePersistentQuoteInput) {
-  const items = input.items
+function normalizeQuoteItems(items: CreateQuoteItemInput[]) {
+  return items
     .map((item, index) => {
       const quantity = normalizeQuantity(item.quantity);
       const unitPrice = normalizeMoney(item.unitPrice);
@@ -140,6 +155,10 @@ export async function createPersistentQuote(input: CreatePersistentQuoteInput) {
       };
     })
     .filter((item) => item.label.length > 0 && item.total > 0);
+}
+
+export async function createPersistentQuote(input: CreatePersistentQuoteInput) {
+  const items = normalizeQuoteItems(input.items);
 
   if (items.length === 0) {
     throw new Error("Agrega al menos un concepto antes de guardar la propuesta");
@@ -200,6 +219,97 @@ export async function createPersistentQuote(input: CreatePersistentQuoteInput) {
       serviceOrders: {
         select: {
           id: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+      },
+    },
+  });
+}
+
+export async function updatePersistentQuote(input: UpdatePersistentQuoteInput) {
+  const quote = await prisma.quote.findFirst({
+    where: {
+      id: input.quoteId,
+      organizationId: input.organizationId,
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (!quote) {
+    throw new Error("La propuesta no existe o no pertenece a tu organización");
+  }
+
+  const items = normalizeQuoteItems(input.items);
+
+  if (items.length === 0) {
+    throw new Error("Agrega al menos un concepto antes de actualizar la propuesta");
+  }
+
+  const clientId = await resolveClientForCapture({
+    organizationId: input.organizationId,
+    clientId: input.clientId,
+    customerName: input.customerName,
+    customerPhone: input.customerPhone,
+  });
+  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+  const total = subtotal;
+
+  return prisma.quote.update({
+    where: {
+      id: input.quoteId,
+    },
+    data: {
+      clientId,
+      flowType: input.flowType,
+      customerName: input.customerName?.trim() || null,
+      customerPhone: input.customerPhone?.trim() || null,
+      notes: input.notes?.trim() || null,
+      scheduledFor:
+        input.flowType === ServiceOrderFlowType.SCHEDULED
+          ? parseNullableToUTC(input.scheduledFor, input.timeZone ?? undefined)
+          : null,
+      subtotal,
+      total,
+      currency: input.currency.trim() || "MXN",
+      snapshot: toInputJson(input.snapshot ?? null),
+      items: {
+        deleteMany: {},
+        create: items,
+      },
+    },
+    include: {
+      items: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+      client: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          email: true,
+        },
+      },
+      createdBy: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      serviceOrders: {
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          clientId: true,
         },
         orderBy: {
           createdAt: "desc",

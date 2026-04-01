@@ -7,7 +7,10 @@ import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo
 import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import { V2_ROUTES } from "@/src/features/v2/routing";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
-import { getOperationalFrontendAccess } from "@/src/lib/authorization";
+import {
+  canManageOrganization,
+  getOperationalFrontendAccess,
+} from "@/src/lib/authorization";
 import {
   listAssignableUsersForOrganization,
   listServiceOrdersForOrganization,
@@ -33,6 +36,10 @@ export default async function V2OrdersPage({ searchParams }: V2OrdersPageProps) 
     context.user.role,
     context.currentOrganizationRole,
     context.currentOrganizationPermissionProfile
+  );
+  const canEditOrderDetails = canManageOrganization(
+    context.user.role,
+    context.currentOrganizationRole
   );
 
   if (!access.canUseOrders) {
@@ -105,6 +112,7 @@ export default async function V2OrdersPage({ searchParams }: V2OrdersPageProps) 
         canScheduleOrders={access.canScheduleOrders}
         canProgressOrders={access.canProgressOrders}
         canChargeOrders={access.canChargeOrders}
+        canEditOrderDetails={canEditOrderDetails}
         orders={orders.map((order) => ({
           id: order.id,
           clientId: order.client?.id ?? null,

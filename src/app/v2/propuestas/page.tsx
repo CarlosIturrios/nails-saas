@@ -7,7 +7,10 @@ import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo
 import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import { V2_ROUTES } from "@/src/features/v2/routing";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
-import { getOperationalFrontendAccess } from "@/src/lib/authorization";
+import {
+  canManageOrganization,
+  getOperationalFrontendAccess,
+} from "@/src/lib/authorization";
 import { listQuotesForOrganization } from "@/src/lib/quotes";
 import { listAssignableUsersForOrganization } from "@/src/lib/service-orders";
 
@@ -31,6 +34,10 @@ export default async function V2QuotesPage({ searchParams }: V2QuotesPageProps) 
     context.user.role,
     context.currentOrganizationRole,
     context.currentOrganizationPermissionProfile
+  );
+  const canEditQuoteDetails = canManageOrganization(
+    context.user.role,
+    context.currentOrganizationRole
   );
 
   if (!access.canUseQuotes) {
@@ -101,6 +108,7 @@ export default async function V2QuotesPage({ searchParams }: V2QuotesPageProps) 
         }}
         assignableUsers={assignableUsers}
         canConvertQuotes={access.canConvertQuotes}
+        canEditQuoteDetails={canEditQuoteDetails}
         quotes={quotes.map((quote) => ({
           id: quote.id,
           clientId: quote.client?.id ?? null,

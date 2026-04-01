@@ -8,9 +8,15 @@ import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import { V2_ROUTES } from "@/src/features/v2/routing";
 import { getIndustryPresentation } from "@/src/features/v2/presentation";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
-import { getOperationalFrontendAccess } from "@/src/lib/authorization";
+import {
+  canManageOrganization,
+  getOperationalFrontendAccess,
+} from "@/src/lib/authorization";
 import { listQuotesForOrganization } from "@/src/lib/quotes";
-import { listServiceOrdersForOrganization } from "@/src/lib/service-orders";
+import {
+  listAssignableUsersForOrganization,
+  listServiceOrdersForOrganization,
+} from "@/src/lib/service-orders";
 
 interface V2PendingPageProps {
   searchParams: Promise<{
@@ -34,6 +40,10 @@ export default async function V2PendingPage({ searchParams }: V2PendingPageProps
     context.currentOrganizationRole,
     context.currentOrganizationPermissionProfile
   );
+  const canEditExistingRecords = canManageOrganization(
+    context.user.role,
+    context.currentOrganizationRole
+  );
 
   if (!access.canUsePending) {
     redirect(V2_ROUTES.capture);
@@ -49,7 +59,7 @@ export default async function V2PendingPage({ searchParams }: V2PendingPageProps
     timeZone
   );
 
-  const [quotes, orders, quoteConfig] = await Promise.all([
+  const [quotes, orders, assignableUsers, quoteConfig] = await Promise.all([
     listQuotesForOrganization(context.currentOrganizationId, {
       from: range.start,
       to: range.end,
@@ -60,6 +70,7 @@ export default async function V2PendingPage({ searchParams }: V2PendingPageProps
       to: range.end,
       limit: range.preset === "all" ? 500 : 300,
     }),
+    listAssignableUsersForOrganization(context.currentOrganizationId),
     getOrganizationQuoteConfigView(context.currentOrganizationId),
   ]);
   const presentation = getIndustryPresentation({
@@ -111,8 +122,12 @@ export default async function V2PendingPage({ searchParams }: V2PendingPageProps
           isLegacyTemplate: quoteConfig.branding.quoteTemplate === "legacy_gica",
         }}
         canConvertQuotes={access.canConvertQuotes}
+        canEditQuoteDetails={canEditExistingRecords}
+        canEditOrderDetails={canEditExistingRecords}
+        canScheduleOrders={access.canScheduleOrders}
         canProgressOrders={access.canProgressOrders}
         canChargeOrders={access.canChargeOrders}
+        assignableUsers={assignableUsers}
         quotes={quotes.map((quote) => ({
           id: quote.id,
           clientId: quote.client?.id ?? null,
@@ -149,9 +164,11 @@ export default async function V2PendingPage({ searchParams }: V2PendingPageProps
           scheduledFor: order.scheduledFor?.toISOString() ?? null,
           createdAt: order.createdAt.toISOString(),
           total: order.total,
+          currency: order.currency,
           assignedToName: order.assignedTo
             ? `${order.assignedTo.firstName} ${order.assignedTo.lastName}`.trim()
             : null,
+          assignedToUserId: order.assignedTo?.id ?? null,
           items: order.items.map((item) => ({
             id: item.id,
             label: item.label,

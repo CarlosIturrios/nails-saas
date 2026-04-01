@@ -4,10 +4,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { QuoteStatus, ServiceOrderStatus } from "@prisma/client";
+import { PencilLine, PlusCircle } from "lucide-react";
 
+import { ServiceOrderActionsPanel } from "@/src/components/orders/ServiceOrderActionsPanel";
 import { AccountBreakdownCard } from "@/src/components/ui/AccountBreakdownCard";
 import { DownloadQuoteImageButton } from "@/src/components/ui/DownloadQuoteImageButton";
 import { OperationsFiltersBar } from "@/src/components/ui/OperationsFiltersBar";
+import {
+  buildV2CaptureEditOrderHref,
+  buildV2CaptureEditQuoteHref,
+} from "@/src/features/v2/routing";
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import {
   ActionHint,
@@ -47,8 +53,17 @@ interface PendingOperationsBoardProps {
     isLegacyTemplate?: boolean;
   };
   canConvertQuotes: boolean;
+  canEditQuoteDetails?: boolean;
+  canEditOrderDetails?: boolean;
+  canScheduleOrders: boolean;
   canProgressOrders: boolean;
   canChargeOrders: boolean;
+  assignableUsers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
   quotes: Array<{
     id: string;
     clientId: string | null;
@@ -77,7 +92,9 @@ interface PendingOperationsBoardProps {
     scheduledFor: string | null;
     createdAt: string;
     total: number;
+    currency: string;
     assignedToName: string | null;
+    assignedToUserId: string | null;
     items: Array<{
       id?: string;
       label: string;
@@ -259,26 +276,6 @@ function buildQuoteNewSaleHref(
   return `${newSaleHrefBase}?${params.toString()}`;
 }
 
-function buildOrderNewSaleHref(
-  order: PendingOperationsBoardProps["orders"][number],
-  newSaleHrefBase: string
-) {
-  const params = new URLSearchParams();
-
-  if (order.clientId) {
-    params.set("clientId", order.clientId);
-  }
-  if (order.customerName) {
-    params.set("customerName", order.customerName);
-  }
-  if (order.customerPhone) {
-    params.set("customerPhone", order.customerPhone);
-  }
-  params.set("intent", "order");
-
-  return `${newSaleHrefBase}?${params.toString()}`;
-}
-
 export function PendingOperationsBoard({
   locale,
   timeZone,
@@ -296,8 +293,12 @@ export function PendingOperationsBoard({
   newSaleHrefBase = "/capturar",
   printBranding,
   canConvertQuotes,
+  canEditQuoteDetails = false,
+  canEditOrderDetails = false,
+  canScheduleOrders,
   canProgressOrders,
   canChargeOrders,
+  assignableUsers,
   quotes,
   orders,
 }: PendingOperationsBoardProps) {
@@ -836,9 +837,19 @@ export function PendingOperationsBoard({
                       {(quote.clientId || quote.customerName || quote.customerPhone) ? (
                         <Link
                           href={buildQuoteNewSaleHref(quote, newSaleHrefBase)}
-                          className="admin-secondary inline-flex w-full items-center justify-center px-4 py-3 text-sm font-semibold sm:w-auto"
+                          className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold sm:w-auto"
                         >
+                          <PlusCircle size={16} />
                           Nueva venta
+                        </Link>
+                      ) : null}
+                      {canEditQuoteDetails ? (
+                        <Link
+                          href={buildV2CaptureEditQuoteHref(quote.id)}
+                          className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold sm:w-auto"
+                        >
+                          <PencilLine size={16} />
+                          Editar detalle
                         </Link>
                       ) : null}
                       {canConvertQuotes &&
@@ -986,38 +997,25 @@ export function PendingOperationsBoard({
                         <p className="font-poppins text-2xl font-semibold text-slate-950 sm:text-right">
                           {formatMoney(order.total, currency, locale)}
                         </p>
-                        {(order.clientId || order.customerName || order.customerPhone) ? (
-                          <Link
-                            href={buildOrderNewSaleHref(order, newSaleHrefBase)}
-                            className="admin-secondary inline-flex w-full items-center justify-center px-4 py-3 text-sm font-semibold sm:w-auto"
-                          >
-                            Nueva venta
-                          </Link>
-                        ) : null}
-                        {nextStatus && nextActionLabel && canMoveOrder ? (
-                          <button
-                            type="button"
-                            onClick={() => updateOrderStatus(order.id, nextStatus)}
-                            disabled={pendingId === order.id}
-                            className="admin-primary w-full px-4 py-3 text-sm font-semibold disabled:opacity-50 sm:w-auto"
-                          >
-                            {pendingId === order.id ? "Actualizando..." : nextActionLabel}
-                          </button>
-                        ) : null}
-                        <DownloadQuoteImageButton
-                          branding={printBranding}
-                          title={printBranding.title}
-                          subtitle={printBranding.subtitle}
-                          totalLabel={printBranding.totalLabel}
-                          total={order.total}
-                          items={order.items.map((item) => ({
-                            label: item.label,
-                            amount: item.total,
-                          }))}
-                          isLegacyTemplate={printBranding.isLegacyTemplate}
-                          label={printBranding.downloadLabel || "Descargar cotización"}
-                          className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold sm:w-auto"
-                        />
+                        <div className="w-full sm:min-w-[280px]">
+                          <ServiceOrderActionsPanel
+                            locale={locale}
+                            timeZone={timeZone}
+                            order={order}
+                            canScheduleOrders={canScheduleOrders}
+                            canProgressOrders={canProgressOrders}
+                            canChargeOrders={canChargeOrders}
+                            assignableUsers={assignableUsers}
+                            printBranding={printBranding}
+                            newSaleHrefBase={newSaleHrefBase}
+                            editHref={
+                              canEditOrderDetails
+                                ? buildV2CaptureEditOrderHref(order.id)
+                                : null
+                            }
+                            collapsed
+                          />
+                        </div>
                       </div>
                     </div>
 

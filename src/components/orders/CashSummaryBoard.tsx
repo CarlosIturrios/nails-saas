@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { ServiceOrderStatus } from "@prisma/client";
 
+import { ServiceOrderActionsPanel } from "@/src/components/orders/ServiceOrderActionsPanel";
 import {
   StatCard,
   StatusBadge,
 } from "@/src/components/ui/OperationsUI";
+import { buildV2CaptureEditOrderHref } from "@/src/features/v2/routing";
 import { formatDate } from "@/src/lib/dates";
 
 interface CashSummaryBoardProps {
@@ -15,6 +17,31 @@ interface CashSummaryBoardProps {
   currency: string;
   orderHrefPrefix?: string;
   clientHrefPrefix?: string;
+  newSaleHrefBase?: string;
+  printBranding: {
+    businessName: string;
+    organizationName: string;
+    logoUrl?: string | null;
+    primaryColor?: string | null;
+    secondaryColor?: string | null;
+    currency: string;
+    language: string;
+    title: string;
+    subtitle?: string | null;
+    totalLabel?: string | null;
+    downloadLabel?: string | null;
+    isLegacyTemplate?: boolean;
+  };
+  canScheduleOrders: boolean;
+  canProgressOrders: boolean;
+  canChargeOrders: boolean;
+  canEditOrderDetails?: boolean;
+  assignableUsers: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
   summary: {
     totalOrders: number;
     paidCount: number;
@@ -28,17 +55,40 @@ interface CashSummaryBoardProps {
     id: string;
     clientId: string | null;
     customerName: string | null;
+    customerPhone: string | null;
     total: number;
     paidAt: string | null;
+    scheduledFor: string | null;
     status: ServiceOrderStatus;
+    currency: string;
+    notes: string | null;
+    sourceQuoteId: string | null;
+    assignedToName: string | null;
+    assignedToUserId: string | null;
+    items: Array<{
+      id?: string | null;
+      label: string;
+      total: number;
+    }>;
   }>;
   pendingOrders: Array<{
     id: string;
     clientId: string | null;
     customerName: string | null;
+    customerPhone: string | null;
     total: number;
     status: ServiceOrderStatus;
     scheduledFor: string | null;
+    currency: string;
+    notes: string | null;
+    sourceQuoteId: string | null;
+    assignedToName: string | null;
+    assignedToUserId: string | null;
+    items: Array<{
+      id?: string | null;
+      label: string;
+      total: number;
+    }>;
   }>;
 }
 
@@ -78,6 +128,13 @@ export function CashSummaryBoard({
   currency,
   orderHrefPrefix = "/ordenes",
   clientHrefPrefix = "/clientes",
+  newSaleHrefBase = "/capturar",
+  printBranding,
+  canScheduleOrders,
+  canProgressOrders,
+  canChargeOrders,
+  canEditOrderDetails = false,
+  assignableUsers,
   summary,
   paidOrders,
   pendingOrders,
@@ -152,9 +209,26 @@ export function CashSummaryBoard({
                         </p>
                       ) : null}
                     </div>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {formatMoney(order.total, currency, locale)}
-                    </span>
+                    <div className="flex w-full max-w-[280px] flex-col gap-3">
+                      <span className="text-sm font-semibold text-slate-900">
+                        {formatMoney(order.total, order.currency, locale)}
+                      </span>
+                      <ServiceOrderActionsPanel
+                        locale={locale}
+                        timeZone={timeZone}
+                        order={order}
+                        canScheduleOrders={canScheduleOrders}
+                        canProgressOrders={canProgressOrders}
+                        canChargeOrders={canChargeOrders}
+                        assignableUsers={assignableUsers}
+                        printBranding={printBranding}
+                        newSaleHrefBase={newSaleHrefBase}
+                        editHref={
+                          canEditOrderDetails ? buildV2CaptureEditOrderHref(order.id) : null
+                        }
+                        collapsed
+                      />
+                    </div>
                   </div>
                 </div>
               ))
@@ -201,9 +275,26 @@ export function CashSummaryBoard({
                         {formatDateTime(order.paidAt, locale, timeZone)}
                       </p>
                     </div>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {formatMoney(order.total, currency, locale)}
-                    </span>
+                    <div className="flex w-full max-w-[280px] flex-col gap-3">
+                      <span className="text-sm font-semibold text-slate-900">
+                        {formatMoney(order.total, order.currency, locale)}
+                      </span>
+                      <ServiceOrderActionsPanel
+                        locale={locale}
+                        timeZone={timeZone}
+                        order={order}
+                        canScheduleOrders={canScheduleOrders}
+                        canProgressOrders={canProgressOrders}
+                        canChargeOrders={canChargeOrders}
+                        assignableUsers={assignableUsers}
+                        printBranding={printBranding}
+                        newSaleHrefBase={newSaleHrefBase}
+                        editHref={
+                          canEditOrderDetails ? buildV2CaptureEditOrderHref(order.id) : null
+                        }
+                        collapsed
+                      />
+                    </div>
                   </div>
                 </div>
               ))

@@ -8,7 +8,9 @@ import {
   ClipboardList,
   Download,
   FileText,
+  PencilLine,
   Phone,
+  PlusCircle,
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -23,6 +25,7 @@ import {
 import { getApiErrorMessage } from "@/src/components/ui/apiFeedback";
 import { downloadQuoteImage } from "@/src/components/ui/downloadQuoteImage";
 import Toast from "@/src/components/ui/Toast";
+import { buildV2CaptureEditQuoteHref } from "@/src/features/v2/routing";
 import {
   formatDate,
   serializeDateTimeForApi,
@@ -39,6 +42,7 @@ interface QuotesBoardProps {
   statusFilter: string;
   searchQuery: string;
   canConvertQuotes: boolean;
+  canEditQuoteDetails?: boolean;
   quoteHrefPrefix?: string;
   orderHrefPrefix?: string;
   clientHrefPrefix?: string;
@@ -231,6 +235,7 @@ export function QuotesBoard({
   statusFilter,
   searchQuery,
   canConvertQuotes,
+  canEditQuoteDetails = false,
   quoteHrefPrefix = "/propuestas",
   orderHrefPrefix = "/ordenes",
   clientHrefPrefix = "/clientes",
@@ -308,6 +313,32 @@ export function QuotesBoard({
       scheduled: filteredQuotes.filter((quote) => Boolean(quote.scheduledFor)).length,
     }),
     [filteredQuotes]
+  );
+  const quotesFiltersBar = (
+    <OperationsFiltersBar
+      rangePreset={rangePreset}
+      anchorDate={anchorDate}
+      from={rangeFrom}
+      to={rangeTo}
+      statusValue={statusFilter}
+      statusParamName="status"
+      statusLabel="Estado de propuesta"
+      statusOptions={[
+        { value: "all", label: "Todos los estados" },
+        { value: "open", label: "Abiertas" },
+        { value: "closed", label: "Cerradas" },
+        { value: QuoteStatus.DRAFT, label: "Borrador" },
+        { value: QuoteStatus.SENT, label: "Enviada" },
+        { value: QuoteStatus.ACCEPTED, label: "Aceptada" },
+        { value: QuoteStatus.CONVERTED, label: "Convertida" },
+        { value: QuoteStatus.CANCELLED, label: "Cancelada" },
+        { value: QuoteStatus.EXPIRED, label: "Expirada" },
+      ]}
+      searchValue={searchQuery}
+      searchParamName="q"
+      searchPlaceholder="Buscar por cliente, teléfono o concepto"
+      helperText="Usa rango, estado y búsqueda para revisar propuestas nuevas, antiguas, abiertas o ya cerradas sin saturar la vista."
+    />
   );
 
   async function updateStatus(quoteId: string, status: QuoteStatus) {
@@ -416,41 +447,25 @@ export function QuotesBoard({
 
   if (quotes.length === 0) {
     return (
-      <section className="admin-surface rounded-3xl p-6 sm:p-8">
-        <p className="text-sm font-medium text-slate-700">Aún no hay propuestas guardadas.</p>
-        <p className="admin-muted mt-2 text-sm leading-6">
-          Usa el cotizador para guardar la primera propuesta antes de convertirla en orden.
-        </p>
-      </section>
+      <>
+        {quotesFiltersBar}
+
+        <section className="admin-surface rounded-3xl p-6 sm:p-8">
+          <p className="text-sm font-medium text-slate-700">
+            No hay propuestas registradas para este rango.
+          </p>
+          <p className="admin-muted mt-2 text-sm leading-6">
+            Cambia el rango para revisar otro día, semana o periodo, o usa el cotizador para
+            guardar la primera propuesta.
+          </p>
+        </section>
+      </>
     );
   }
 
   return (
     <>
-      <OperationsFiltersBar
-        rangePreset={rangePreset}
-        anchorDate={anchorDate}
-        from={rangeFrom}
-        to={rangeTo}
-        statusValue={statusFilter}
-        statusParamName="status"
-        statusLabel="Estado de propuesta"
-        statusOptions={[
-          { value: "all", label: "Todos los estados" },
-          { value: "open", label: "Abiertas" },
-          { value: "closed", label: "Cerradas" },
-          { value: QuoteStatus.DRAFT, label: "Borrador" },
-          { value: QuoteStatus.SENT, label: "Enviada" },
-          { value: QuoteStatus.ACCEPTED, label: "Aceptada" },
-          { value: QuoteStatus.CONVERTED, label: "Convertida" },
-          { value: QuoteStatus.CANCELLED, label: "Cancelada" },
-          { value: QuoteStatus.EXPIRED, label: "Expirada" },
-        ]}
-        searchValue={searchQuery}
-        searchParamName="q"
-        searchPlaceholder="Buscar por cliente, teléfono o concepto"
-        helperText="Usa rango, estado y búsqueda para revisar propuestas nuevas, antiguas, abiertas o ya cerradas sin saturar la vista."
-      />
+      {quotesFiltersBar}
 
       <section className="ops-card p-6 sm:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -590,10 +605,20 @@ export function QuotesBoard({
                   <div className="mt-5 flex flex-col gap-3">
                     <Link
                       href={buildNewSaleHref(quote, newSaleHrefBase)}
-                      className="admin-secondary inline-flex w-full items-center justify-center px-4 py-3 text-sm font-semibold"
+                      className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
                     >
+                      <PlusCircle size={16} />
                       Nueva venta con este cliente
                     </Link>
+                    {canEditQuoteDetails ? (
+                      <Link
+                        href={buildV2CaptureEditQuoteHref(quote.id)}
+                        className="admin-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-semibold"
+                      >
+                        <PencilLine size={16} />
+                        Editar detalle
+                      </Link>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => void downloadQuote(quote)}

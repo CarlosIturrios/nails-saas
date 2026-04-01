@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { QuoteStatus } from "@prisma/client";
+import { PencilLine } from "lucide-react";
 
 import { AccountBreakdownCard } from "@/src/components/ui/AccountBreakdownCard";
 import { DownloadQuoteImageButton } from "@/src/components/ui/DownloadQuoteImageButton";
@@ -10,11 +11,13 @@ import { getEffectiveLogoUrl } from "@/src/features/quote-calculator-v2/lib/logo
 import { V2PageHero } from "@/src/features/v2/shell/V2Shell";
 import {
   V2_ROUTES,
+  buildV2CaptureEditQuoteHref,
   buildV2NewSaleHref,
   getV2ClientHref,
   getV2OrderHref,
 } from "@/src/features/v2/routing";
 import { formatDate } from "@/src/lib/dates";
+import { canManageOrganization } from "@/src/lib/authorization";
 import { requireCurrentOrganization } from "@/src/lib/organizations/context";
 import { getQuoteById } from "@/src/lib/quotes";
 
@@ -56,6 +59,10 @@ export default async function V2QuoteDetailPage({ params }: V2QuoteDetailPagePro
   const [{ id }, context] = await Promise.all([params, requireCurrentOrganization()]);
   const timeZone =
     context.currentTimezone?.timezone ?? context.currentOrganization.defaultTimezone;
+  const canEditQuoteDetails = canManageOrganization(
+    context.user.role,
+    context.currentOrganizationRole
+  );
 
   let quote;
   const quoteConfig = await getOrganizationQuoteConfigView(context.currentOrganizationId);
@@ -128,6 +135,15 @@ export default async function V2QuoteDetailPage({ params }: V2QuoteDetailPagePro
             <p className="text-right font-poppins text-3xl font-semibold text-slate-950">
               {formatMoney(quote.total, quote.currency, "es-MX")}
             </p>
+            {canEditQuoteDetails ? (
+              <Link
+                href={buildV2CaptureEditQuoteHref(quote.id)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-[#e8dece] px-4 py-3 text-sm font-semibold text-slate-700"
+              >
+                <PencilLine size={16} />
+                Editar detalle
+              </Link>
+            ) : null}
             <DownloadQuoteImageButton
               branding={printBranding}
               title={quoteConfig.ui.titles.calculatorTitle || `Cotizacion ${quoteConfig.branding.businessName}`}

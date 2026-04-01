@@ -297,7 +297,10 @@ export function CaptureDetailsStep({
                 />
               </label>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div
+                className="mt-5 grid gap-3 border-t pt-5 sm:mt-6 sm:grid-cols-2"
+                style={{ borderColor: theme.panelBorder }}
+              >
                 <button
                   type="button"
                   onClick={() => onFlowTypeChange(ServiceOrderFlowType.SCHEDULED)}
@@ -561,7 +564,7 @@ export function CaptureDetailsStep({
               />
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="mt-5 grid gap-3 border-t border-[#efe6d8] pt-5 sm:mt-6 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => onFlowTypeChange(ServiceOrderFlowType.SCHEDULED)}
