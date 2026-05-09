@@ -2,6 +2,8 @@
 
 import html2canvas from "html2canvas";
 
+import { getNegativeAmountDetail, isNegativeAmount } from "@/src/lib/capture-amounts";
+
 interface QuoteImageBranding {
   businessName: string;
   organizationName: string;
@@ -182,7 +184,8 @@ export async function downloadQuoteImage(input: DownloadQuoteImageInput) {
   header.appendChild(headerText);
   tempDiv.appendChild(header);
 
-  const addRow = (label: string, value: string, detail?: string) => {
+  const addRow = (label: string, amount: number, value: string, detail?: string) => {
+    const isDiscount = isNegativeAmount(amount);
     const row = document.createElement("div");
     row.style.display = "flex";
     row.style.justifyContent = "space-between";
@@ -218,7 +221,7 @@ export async function downloadQuoteImage(input: DownloadQuoteImageInput) {
     right.style.flexShrink = "0";
     right.style.fontSize = "14px";
     right.style.fontWeight = "700";
-    right.style.color = "#111827";
+    right.style.color = isDiscount ? "#047857" : "#111827";
 
     row.appendChild(leftBlock);
     row.appendChild(right);
@@ -234,10 +237,13 @@ export async function downloadQuoteImage(input: DownloadQuoteImageInput) {
   };
 
   input.rows.forEach((row) => {
+    const detail = row.detail ?? getNegativeAmountDetail(row.amount) ?? undefined;
+
     addRow(
       row.label,
+      row.amount,
       formatMoney(row.amount, input.branding.currency, input.branding.language),
-      row.detail
+      detail
     );
   });
 

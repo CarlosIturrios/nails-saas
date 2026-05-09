@@ -21,6 +21,7 @@ interface CaptureSaveStepProps {
   primarySaveIntent: CaptureSaveIntentOption | null;
   saveIntent: SaveIntent;
   total: number;
+  hasLineItems: boolean;
   canSaveWithoutConcepts?: boolean;
   savingQuote: boolean;
   savingOrder: boolean;
@@ -48,6 +49,7 @@ export function CaptureSaveStep({
   primarySaveIntent,
   saveIntent,
   total,
+  hasLineItems,
   canSaveWithoutConcepts = false,
   savingQuote,
   savingOrder,
@@ -71,7 +73,8 @@ export function CaptureSaveStep({
         : "Cobro";
   const isPosLayout = theme.layoutVariant !== "stacked";
   const isTouch = theme.layoutVariant === "pos_touch";
-  const saveDisabled = (!canSaveWithoutConcepts && total === 0) || savingQuote || savingOrder;
+  const saveDisabled =
+    (!canSaveWithoutConcepts && !hasLineItems) || total < 0 || savingQuote || savingOrder;
 
   if (demoMode) {
     return (
@@ -108,7 +111,7 @@ export function CaptureSaveStep({
           <button
             type="button"
             onClick={onDownloadSummary}
-            disabled={total === 0 || downloading}
+            disabled={!hasLineItems || total < 0 || downloading}
             className="admin-secondary w-full px-5 py-3 text-sm font-semibold disabled:opacity-50"
           >
             {downloading ? "Generando imagen..." : downloadLabel}
@@ -246,7 +249,7 @@ export function CaptureSaveStep({
               <button
                 type="button"
                 onClick={onDownloadSummary}
-                disabled={total === 0 || downloading}
+                disabled={!hasLineItems || total < 0 || downloading}
                 className="admin-secondary w-full px-5 py-3 text-sm font-semibold disabled:opacity-50"
               >
                 {downloading ? "Generando imagen..." : downloadLabel}
@@ -403,7 +406,7 @@ export function CaptureSaveStep({
           <button
             type="button"
             onClick={onDownloadSummary}
-            disabled={total === 0 || downloading}
+            disabled={!hasLineItems || total < 0 || downloading}
             className="rounded-[22px] border px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-50"
             style={{
               borderColor: theme.panelBorder,

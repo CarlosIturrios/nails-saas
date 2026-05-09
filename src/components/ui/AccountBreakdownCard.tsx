@@ -1,5 +1,7 @@
 import { ChevronDown, ReceiptText } from "lucide-react";
 
+import { getNegativeAmountDetail, isNegativeAmount } from "@/src/lib/capture-amounts";
+
 interface AccountBreakdownItem {
   id?: string;
   label: string;
@@ -120,22 +122,31 @@ export function AccountBreakdownCard({
           </summary>
 
           <div className="mt-4 space-y-2">
-            {items.map((item, index) => (
-              <div
-                key={item.id ?? `${item.label}-${index}`}
-                className="flex flex-col gap-2 rounded-2xl border border-[#efe6d8] bg-[#fffdfa] px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-950">{item.label}</p>
-                  {item.description ? (
-                    <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
-                  ) : null}
+            {items.map((item, index) => {
+              const isDiscount = isNegativeAmount(item.amount);
+              const detail = item.description ?? getNegativeAmountDetail(item.amount);
+
+              return (
+                <div
+                  key={item.id ?? `${item.label}-${index}`}
+                  className="flex flex-col gap-2 rounded-2xl border border-[#efe6d8] bg-[#fffdfa] px-4 py-3 sm:flex-row sm:items-start sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-950">{item.label}</p>
+                    {detail ? (
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{detail}</p>
+                    ) : null}
+                  </div>
+                  <span
+                    className={`shrink-0 text-sm font-semibold sm:text-right ${
+                      isDiscount ? "text-emerald-700" : "text-slate-900"
+                    }`}
+                  >
+                    {formatMoney(item.amount, currency, locale)}
+                  </span>
                 </div>
-                <span className="shrink-0 text-sm font-semibold text-slate-900 sm:text-right">
-                  {formatMoney(item.amount, currency, locale)}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </details>
       )}

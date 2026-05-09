@@ -61,6 +61,13 @@ import {
   serializeDateTimeForApi,
   toDatetimeLocalValue,
 } from "@/src/lib/dates";
+import {
+  getManualAdjustmentDetail,
+  hasCaptureConcepts,
+  isValidManualAdjustmentAmount,
+  NEGATIVE_CAPTURE_TOTAL_ERROR_MESSAGE,
+  normalizeSignedMoney,
+} from "@/src/lib/capture-amounts";
 
 interface QuoteCalculatorV2Props {
   config: OrganizationQuoteConfigView;
@@ -477,13 +484,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeDraftMoney(value: unknown) {
-  const amount = Number(value);
-
-  if (!Number.isFinite(amount)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.round(amount));
+  return normalizeSignedMoney(value);
 }
 
 function normalizeDraftQuantity(value: unknown) {
@@ -591,7 +592,7 @@ function parseSnapshotManualAdjustments(
       const label = typeof row.label === "string" ? row.label.trim() : "";
       const amount = normalizeDraftMoney(row.amount);
 
-      if (!label || amount <= 0) {
+      if (!label || amount === 0) {
         return null;
       }
 
@@ -901,7 +902,7 @@ function buildInitialDraftState(
     const normalizedLabel = label.trim();
     const normalizedAmount = normalizeDraftMoney(amount);
 
-    if (!normalizedLabel || normalizedAmount <= 0) {
+    if (!normalizedLabel || normalizedAmount === 0) {
       return;
     }
 
@@ -1450,6 +1451,9 @@ export function QuoteCalculatorV2({
       ),
     [extraRows, manualAdjustments, selectedRows]
   );
+  const lineItemCount = selectedRows.length + extraRows.length + manualAdjustments.length;
+  const hasLineItems = hasCaptureConcepts(lineItemCount);
+  const hasNegativeTotal = total < 0;
   const quoteNoun =
     (presentation?.quoteLabel || "cotización").toLowerCase() === "cotizar"
       ? "propuesta"
@@ -1555,7 +1559,7 @@ export function QuoteCalculatorV2({
 
   function addManualAdjustment() {
     const label = manualLabel.trim();
-    const amount = Number(manualAmount);
+    const amount = normalizeSignedMoney(manualAmount);
 
     if (!label) {
       setToast({
@@ -1565,9 +1569,9 @@ export function QuoteCalculatorV2({
       return;
     }
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!isValidManualAdjustmentAmount(manualAmount)) {
       setToast({
-        message: "Escribe un monto válido mayor a cero.",
+        message: "Escribe un monto válido distinto de cero. Usa negativos para descuentos.",
         type: "info",
       });
       return;
@@ -1578,7 +1582,7 @@ export function QuoteCalculatorV2({
       {
         id: `${Date.now()}-${current.length}`,
         label,
-        amount: Math.round(amount),
+        amount,
       },
     ]);
     setManualLabel("");
@@ -1716,7 +1720,7 @@ export function QuoteCalculatorV2({
   const canSaveScheduledOrderWithoutConcepts =
     flowType === ServiceOrderFlowType.SCHEDULED &&
     (captureIntent === "appointment" || isEditingOrder);
-  const showMobileStickyBar = total > 0 || canSaveScheduledOrderWithoutConcepts;
+  const showMobileStickyBar = hasLineItems || canSaveScheduledOrderWithoutConcepts;
 
   function showQuoteShortcut(quoteId: string, mode: "created" | "updated") {
     setResultShortcut({
@@ -1747,7 +1751,15 @@ export function QuoteCalculatorV2({
   }
 
   async function saveQuote() {
-    if (total === 0 || savingQuote) {
+    if (!hasLineItems || savingQuote) {
+      return;
+    }
+
+    if (hasNegativeTotal) {
+      setToast({
+        message: NEGATIVE_CAPTURE_TOTAL_ERROR_MESSAGE,
+        type: "info",
+      });
       return;
     }
 
@@ -1766,21 +1778,21 @@ export function QuoteCalculatorV2({
         isEditingQuote ? `/api/quotes/${editEntityId}` : "/api/quotes",
         {
           method: isEditingQuote ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: selectedClient?.id ?? null,
-          flowType,
-          customerName,
-          customerPhone,
-          notes: orderNotes,
-          scheduledFor:
-            flowType === ServiceOrderFlowType.SCHEDULED
-              ? serializeDateTimeForApi(scheduledFor, timeZone)
-              : null,
-          currency: config.branding.currency,
-          snapshot: buildSnapshot(),
-          items: buildQuoteItems(),
-        }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: selectedClient?.id ?? null,
+            flowType,
+            customerName,
+            customerPhone,
+            notes: orderNotes,
+            scheduledFor:
+              flowType === ServiceOrderFlowType.SCHEDULED
+                ? serializeDateTimeForApi(scheduledFor, timeZone)
+                : null,
+            currency: config.branding.currency,
+            snapshot: buildSnapshot(),
+            items: buildQuoteItems(),
+          }),
         }
       );
       const payload = await response.json();
@@ -1821,7 +1833,15 @@ export function QuoteCalculatorV2({
   }
 
   async function saveOrder(status: ServiceOrderStatus) {
-    if ((total === 0 && !canSaveScheduledOrderWithoutConcepts) || savingOrder) {
+    if ((!hasLineItems && !canSaveScheduledOrderWithoutConcepts) || savingOrder) {
+      return;
+    }
+
+    if (hasNegativeTotal) {
+      setToast({
+        message: NEGATIVE_CAPTURE_TOTAL_ERROR_MESSAGE,
+        type: "info",
+      });
       return;
     }
 
@@ -1840,23 +1860,23 @@ export function QuoteCalculatorV2({
         isEditingOrder ? `/api/service-orders/${editEntityId}` : "/api/service-orders",
         {
           method: isEditingOrder ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientId: selectedClient?.id ?? null,
-          status: isEditingOrder ? editOrderStatus ?? status : status,
-          flowType,
-          customerName,
-          customerPhone,
-          notes: orderNotes,
-          assignedToUserId: assignedToUserId || null,
-          scheduledFor:
-            flowType === ServiceOrderFlowType.SCHEDULED
-              ? serializeDateTimeForApi(scheduledFor, timeZone)
-              : null,
-          currency: config.branding.currency,
-          snapshot: buildSnapshot(),
-          items: buildOrderItems(),
-        }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: selectedClient?.id ?? null,
+            status: isEditingOrder ? editOrderStatus ?? status : status,
+            flowType,
+            customerName,
+            customerPhone,
+            notes: orderNotes,
+            assignedToUserId: assignedToUserId || null,
+            scheduledFor:
+              flowType === ServiceOrderFlowType.SCHEDULED
+                ? serializeDateTimeForApi(scheduledFor, timeZone)
+                : null,
+            currency: config.branding.currency,
+            snapshot: buildSnapshot(),
+            items: buildOrderItems(),
+          }),
         }
       );
       const payload = await response.json();
@@ -1904,7 +1924,15 @@ export function QuoteCalculatorV2({
   }
 
   async function downloadSummary() {
-    if (total === 0 || downloading) {
+    if (!hasLineItems || downloading) {
+      return;
+    }
+
+    if (hasNegativeTotal) {
+      setToast({
+        message: NEGATIVE_CAPTURE_TOTAL_ERROR_MESSAGE,
+        type: "info",
+      });
       return;
     }
 
@@ -1945,7 +1973,7 @@ export function QuoteCalculatorV2({
           ...manualAdjustments.map((row) => ({
             label: row.label,
             amount: row.amount,
-            detail: "Ajuste manual agregado antes de generar el resumen.",
+            detail: getManualAdjustmentDetail(row.amount),
           })),
         ],
       });
@@ -2387,6 +2415,7 @@ export function QuoteCalculatorV2({
                       orderActionLabel={orderActionLabel}
                       paidActionLabel={paidActionLabel}
                       total={total}
+                      hasLineItems={hasLineItems}
                       canSaveWithoutConcepts={canSaveScheduledOrderWithoutConcepts}
                       savingQuote={savingQuote}
                       savingOrder={savingOrder}
@@ -2417,7 +2446,7 @@ export function QuoteCalculatorV2({
         language={config.branding.language}
         actionLabel={primaryActionLabel}
         downloadLabel={config.ui.labels.download || "Descargar resumen"}
-        itemCount={selectedRows.length + extraRows.length + manualAdjustments.length}
+        itemCount={lineItemCount}
         downloading={downloading}
         canShowWhenEmpty={canSaveScheduledOrderWithoutConcepts}
         theme={modernTheme}

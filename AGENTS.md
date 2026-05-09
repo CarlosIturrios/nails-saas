@@ -1,0 +1,337 @@
+# AGENTS.md
+
+## Project Overview
+- `nails-saas` is a Next.js 16 App Router monolith for multi-organization operational workflows.
+- Main product areas found in the repo:
+  - email-code login
+  - organization selection and organization-scoped permissions
+  - capture/new sale flow
+  - quotes, service orders, agenda, pending work, cash summary, client history
+  - organization admin
+  - SaaS admin
+- User-facing operational URLs are Spanish (`/capturar`, `/pendientes`, `/agenda`, `/clientes`, `/propuestas`, `/ordenes`, `/caja`, `/tablero`). The actual pages live under `src/app/v2/*` and are exposed through rewrites in `next.config.ts`.
+- There is also a demo calculator flow under `src/app/cotizaciones/page.tsx`.
+- This repo is a full-stack Next.js app. There is no separate backend service.
+
+## Tech Stack
+- Next.js `16.1.6`
+- React `19.2.3`
+- TypeScript with `strict: true`
+- App Router only. No `pages/` router found.
+- Tailwind CSS 4 via `@import "tailwindcss"` in `src/app/globals.css`
+- Prisma ORM `7.4.1`
+- PostgreSQL via `@prisma/adapter-pg` + `pg`
+- JWT auth via `jsonwebtoken` (Node) and `jose` (edge/proxy)
+- Mailgun for login code emails
+- Vercel Blob for logo uploads
+- ESLint 9 + `eslint-config-next`
+- Prettier 3 + `prettier-plugin-tailwindcss`
+- No test runner/config was found in the repo
+- `package-lock.json` is present; npm is the in-repo package manager
+
+## Project Structure
+- `src/app`
+  - App Router pages, layouts, and route handlers
+  - `src/app/v2/*`: main operational pages
+  - `src/app/admin/*`: SaaS admin pages
+  - `src/app/organization-admin/*`: organization admin pages
+  - `src/app/api/*`: HTTP API surface
+- `src/lib`
+  - server-only business logic and backend utilities
+  - key modules: `db.ts`, `quotes.ts`, `service-orders.ts`, `capture-clients.ts`, `organizations/context.ts`, `authorization.ts`, `dates.ts`
+- `src/features/quote-calculator-v2`
+  - quote/order capture flow, config types, presets, config persistence
+- `src/features/quote-config-admin`
+  - capture/configuration wizard UI
+- `src/features/v2`
+  - route constants, shell, presentation helpers, filters
+- `src/components`
+  - client boards and shared UI components
+- `src/admin`
+  - config-driven SaaS admin model registry and CRUD helpers
+- `prisma/schema.prisma`
+  - Prisma schema
+- `prisma/migrations`
+  - checked-in SQL migrations
+- `prisma.config.ts`
+  - Prisma CLI config, loads `.env`
+- `scripts/seed-quote-configs.mjs`
+  - backfills organization quote configs for existing orgs
+- `src/proxy.ts`
+  - auth redirect gate for major page groups
+- `next.config.ts`
+  - rewrites/redirects for the pretty operational routes
+
+## Setup Instructions
+- Install dependencies with `npm install`.
+- Create or reuse a PostgreSQL database and set `DATABASE_URL`.
+- Apply committed migrations before first real use:
+  - `npx prisma migrate deploy`
+- If you are working with pre-existing organizations that do not yet have quote configs, an optional helper exists:
+  - `npm run seed:quote-configs`
+- Start the dev server with `npm run dev`.
+- Important:
+  - There is no `.env.example` in this repo.
+  - `postinstall` runs `prisma generate`.
+
+## Running the App
+- Dev: `npm run dev`
+- Build: `npm run build`
+  - This runs `prisma migrate deploy && next build`
+  - A reachable database is required during build because migrations run first
+- Start production build: `npm run start`
+- Lint: `npm run lint`
+- There is no `test` script in `package.json`
+
+## Environment Variables
+- Required by searched code:
+  - `DATABASE_URL`: PostgreSQL connection string for Prisma
+  - `JWT_SECRET`: JWT signing/verification secret
+  - `MAILGUN_API_KEY`
+  - `MAILGUN_DOMAIN`
+  - `MAILGUN_SENDER`
+  - `BLOB_PUBLIC_READ_WRITE_TOKEN`: required for `/api/admin/quote-logo`
+- Also relevant:
+  - `NODE_ENV`: toggles secure cookie behavior and Prisma dev singleton caching
+- Notes:
+  - `.env` currently also contains `BLOB_READ_WRITE_TOKEN`, but searched application code references `BLOB_PUBLIC_READ_WRITE_TOKEN`, not `BLOB_READ_WRITE_TOKEN`.
+  - Do not copy secret values into docs, commits, logs, or AI output.
+
+## Database & Prisma (VERY IMPORTANT)
+- Prisma is configured in `prisma/schema.prisma` and `prisma.config.ts`.
+- Prisma client instantiation lives in `src/lib/db.ts`.
+  - It uses `PrismaClient` with `PrismaPg(new Pool({ connectionString: process.env.DATABASE_URL }))`.
+  - It caches the client on `global` in non-production.
+  - Do not create another application-level `PrismaClient`.
+- Migration strategy:
+  - The repo uses checked-in SQL migrations in `prisma/migrations`.
+  - `npm run build` runs `prisma migrate deploy`.
+  - Do not bypass migration history.
+- Current models and relationships:
+  - `Organization`: tenant root. Holds memberships, clients, quote config, quotes, service orders, default timezone.
+  - `User`: global account. Holds global `role`, memberships, login codes, created quotes/orders, assigned orders.
+  - `UserOrganization`: join table between users and organizations with per-org `role` and `permissionProfile`.
+  - `Client`: optional organization-scoped customer reused by quotes and service orders.
+  - `LoginCode`: temporary email login code records.
+  - `OrganizationConfig`: one-to-one organization capture config.
+  - `ServiceCategory` -> `ServiceOption`: service catalog for capture config.
+  - `ExtraOption`: extra charge catalog for capture config.
+  - `BusinessRules`: per-organization capture rules.
+  - `UIConfig`: per-organization UI copy config.
+  - `Quote` -> `QuoteItem`: persisted quotes/proposals.
+  - `ServiceOrder` -> `ServiceOrderItem`: persisted service orders, optionally linked back to `Quote`.
+- Important enums:
+  - `UserRole`
+  - `UserOrganizationRole`
+  - `UserOrganizationPermissionProfile`
+  - `ExtraPricingType`
+  - `ServiceOrderStatus`
+  - `QuoteStatus`
+  - `ServiceOrderFlowType`
+  - `ServiceOrderItemType`
+  - `QuoteItemType`
+- Important indexes and constraints:
+  - `User.email` is unique.
+  - `UserOrganization` has `@@unique([userId, organizationId])`.
+  - `OrganizationConfig.organizationId`, `BusinessRules.organizationConfigId`, and `UIConfig.organizationConfigId` are unique.
+  - Quotes and service orders are indexed by organization/date/status and by client.
+  - `ServiceOrder` is additionally indexed by `assignedToUserId` and `sourceQuoteId`.
+  - Item tables are indexed by parent id + `sortOrder`.
+- High-risk write patterns already in the codebase:
+  - `saveOrganizationQuoteConfig()` deletes all existing service categories, service options, and extra options, then recreates them inside a transaction. Their IDs are not stable across saves.
+  - `updatePersistentQuote()` and `updateServiceOrder()` replace all items with `deleteMany: {}` + `create`. Item IDs are not stable across edits.
+  - `convertQuoteToServiceOrder()` creates the order and updates the quote status in separate calls. It is not transactional today.
+  - Admin delete flows are hard deletes. There is no soft-delete system in the schema.
+- Existing migration history shows important destructive evolution already happened:
+  - multi-organization backfill and removal of `User.organizationId`
+  - role enum remapping from old values to current values
+  - addition of timezone columns
+- Treat any schema or enum change as cross-cutting: it can break database state, API normalization, auth, filters, exports, and client code.
+
+## API Architecture
+- All APIs live under `src/app/api`.
+- Public auth routes:
+  - `/api/auth/send-code`
+  - `/api/auth/verify-code`
+  - `/api/logout`
+- Organization/context routes:
+  - `/api/organizations`
+  - `/api/organizations/active`
+  - `/api/organization-admin/organizations`
+  - `/api/organization-admin/members`
+  - `/api/preferences/timezone`
+- Operational routes:
+  - `/api/clients`
+  - `/api/clients/search`
+  - `/api/quotes`
+  - `/api/quotes/[id]`
+  - `/api/quotes/[id]/status`
+  - `/api/quotes/[id]/convert`
+  - `/api/service-orders`
+  - `/api/service-orders/[id]`
+  - `/api/service-orders/[id]/status`
+  - `/api/service-orders/[id]/assignment`
+  - `/api/service-orders/[id]/schedule`
+  - `/api/reports/export/[module]`
+- Admin routes:
+  - `/api/admin/[model]`
+  - `/api/admin/quote-logo`
+  - `/api/users/create` exists, but no frontend caller was found in searched code
+- Route handler conventions:
+  - Read auth/tenant context with `getOrganizationContextFromRequest()` or a `require*Context()` helper.
+  - Check permissions with `canPerformOperationalActionForContext()`, `canManageOrganization()`, or admin context helpers before querying.
+  - Normalize request input manually inside the route or server lib. There is currently no shared request-schema layer in use.
+  - Return `NextResponse.json(...)` on normal JSON routes.
+  - Error payloads consistently use `{ error: string }`. Client code depends on this.
+- Do not assume `src/proxy.ts` protects every API route.
+  - `src/proxy.ts` matches page trees and some admin APIs, but many operational APIs still rely on route-level auth/context checks.
+  - Keep the route-level guards.
+
+## Frontend Architecture (Next.js)
+- Routing system: App Router only.
+- Root layout: `src/app/layout.tsx`
+- Main app shell: `src/app/v2/layout.tsx` + `src/features/v2/shell/V2Shell.tsx`
+- Admin shell: `src/app/admin/layout.tsx`
+- Organization-admin shell: `src/app/organization-admin/layout.tsx`
+- Actual operational pages live in `src/app/v2/*`.
+- User-facing routes like `/capturar`, `/agenda`, `/clientes`, `/propuestas`, `/ordenes`, `/caja`, `/tablero` are provided by:
+  - `src/app/v2/*`
+  - `next.config.ts` rewrites/redirects
+  - `src/features/v2/routing.ts`
+  - `src/proxy.ts` matcher
+- Common data flow:
+  1. Server page resolves organization/user context.
+  2. Server page fetches server data from `src/lib/*` or other server-only modules.
+  3. Server page maps DB objects to serializable props.
+  4. Client component renders UI and mutates via `fetch("/api/...")`.
+  5. Client component refreshes with `router.refresh()` or redirects with `router.push()/replace()`.
+- Important boundary rules:
+  - Server-only modules explicitly import `"server-only"`.
+  - Client components explicitly use `"use client"`.
+  - No server actions were found in the repo.
+  - Never import `src/lib/db.ts` or Prisma client code into a client component.
+- Current shared frontend contracts that agents must preserve:
+  - Quote capture expects quote create/update APIs to return an object with `id`.
+  - Order capture expects order create/update APIs to return an object with `id`.
+  - Failure responses are parsed as JSON and read from `payload.error`.
+  - Filters, exports, and status selectors assume current enum names.
+- Timezone handling is first-class.
+  - Use `src/lib/dates.ts` helpers.
+  - Do not hand-roll date parsing/formatting for scheduled quotes/orders.
+
+## Code Style & Conventions
+- TypeScript is strict.
+- Imports use the alias mapping from `tsconfig.json`, typically `@/src/...`.
+- Code style in-repo:
+  - double quotes
+  - semicolons
+  - named exports are common
+  - Spanish user-facing copy and error messages
+- Tailwind is used inline, with additional shared CSS utility classes in `src/app/globals.css`.
+- Business logic is usually kept out of large client components and placed in server-only modules such as:
+  - `src/lib/quotes.ts`
+  - `src/lib/service-orders.ts`
+  - `src/lib/capture-clients.ts`
+  - `src/features/quote-calculator-v2/lib/config.ts`
+  - `src/lib/organizations/context.ts`
+- Exceptions exist:
+  - Some server pages and route handlers still query Prisma directly.
+  - If you touch code in those areas, prefer extracting reusable logic instead of duplicating more inline Prisma access.
+- Request validation is currently manual.
+  - `zod` is installed, but searched route handlers are not using it.
+  - If you introduce schema validation, keep existing API shapes and error semantics stable.
+
+## Architecture Notes
+- Tenant scoping is organization-based. Operational data must always be filtered by `organizationId`.
+- Permission model is layered:
+  - global `UserRole`
+  - per-organization `UserOrganizationRole`
+  - per-organization `UserOrganizationPermissionProfile`
+- `src/lib/authorization.ts` is a central policy file. Changes there ripple through navigation, UI access, and route permissions.
+- Session state is cookie-based:
+  - `token`
+  - `activeOrganizationId`
+  - `organizationState`
+  - optional `detectedTimezone`
+- `OrganizationQuoteConfigView` and `OrganizationQuoteConfigInput` are shared contracts between:
+  - admin capture configuration
+  - runtime capture calculator
+  - organization bootstrap logic
+- The capture/config save path fully replaces catalog rows. Do not store long-lived references to config item IDs outside that bounded context.
+- The app uses a sentinel phone value of `SIN_TELEFONO` in the database and maps it back to `null` at UI edges.
+- Status transitions stamp dates:
+  - Quotes: `acceptedAt`, `convertedAt`
+  - Orders: `startedAt`, `completedAt`, `paidAt`
+  - Existing code does not automatically clear these when moving backward.
+- The checked-in `README.md` is still the default create-next-app scaffold and is not authoritative for this product.
+- No automated tests or test configs were found. Manual regression checking is currently part of safe delivery.
+
+## Critical Rules (VERY IMPORTANT)
+- Never modify `prisma/schema.prisma` without creating and reviewing a matching migration in `prisma/migrations`.
+- Never use `prisma db push` as a shortcut for schema changes in this repo.
+- Never introduce a second application-level `PrismaClient`. Use `src/lib/db.ts`. The standalone seed script is a special-case script, not an application pattern.
+- Never call Prisma from a React client component.
+- For browser-initiated writes, always go through an API route. For server reads/writes, prefer existing server-only domain modules when they already exist.
+- Always validate and normalize API input before Prisma writes. Do not pass raw request bodies straight into Prisma.
+- Always scope organization-owned data by `organizationId`.
+- Preserve API error shape `{ error: string }`.
+- Preserve success payload shapes that current clients depend on, especially quote/order create/update responses with `id`.
+- Do not rename enum values casually. Client components import Prisma enums directly from `@prisma/client`.
+- Do not change pretty routes in only one place. Keep `src/app/v2/*`, `src/features/v2/routing.ts`, `next.config.ts`, and `src/proxy.ts` consistent.
+- Do not assume `src/proxy.ts` handles all auth/authorization. Keep route-level guards in place.
+- Treat deletion flows as destructive. There is no soft-delete layer.
+- Treat organization deletion as especially dangerous:
+  - memberships, quote config, quotes, and service orders can be removed by relational cascades
+  - clients are manually detached in admin delete flow before organization deletion
+- Treat `saveOrganizationQuoteConfig()` as destructive replacement, not a patch update.
+- Treat `updatePersistentQuote()` and `updateServiceOrder()` as destructive replacement of child items.
+- Prefer transactions for multi-step DB operations.
+- If you touch quote-to-order conversion, preserve or improve consistency. Do not make the current non-transactional flow more fragile.
+- Keep `snapshot` JSON backward-compatible unless you update all readers and writers together.
+- Use `src/lib/dates.ts` for timezone-aware parsing/serialization. Do not replace it with ad hoc date math.
+- Never expose or commit `.env` secrets.
+
+## Safe Modification Guidelines
+- When changing quote behavior, inspect all of:
+  - `src/lib/quotes.ts`
+  - `src/app/api/quotes*`
+  - quote boards/detail pages
+  - `src/features/quote-calculator-v2/components/QuoteCalculatorV2.tsx`
+  - export routes and status filters
+- When changing service order behavior, inspect all of:
+  - `src/lib/service-orders.ts`
+  - `src/app/api/service-orders*`
+  - order/agenda/pending/cash/dashboard boards
+  - capture flow edit mode
+- When changing organization context, auth, or route access, inspect all of:
+  - `src/lib/organizations/context.ts`
+  - `src/lib/authorization.ts`
+  - `src/proxy.ts`
+  - `src/lib/auth/*`
+  - layouts that redirect based on access
+- When changing capture config models or save logic, inspect all of:
+  - `src/features/quote-calculator-v2/lib/config.ts`
+  - `src/features/quote-calculator-v2/lib/types.ts`
+  - `src/features/quote-config-admin/components/*`
+  - organization/admin capture pages
+- When changing admin model definitions, inspect both:
+  - `src/admin/config/models.ts`
+  - `src/admin/lib/data.ts`
+- When adding or changing a route, search for:
+  - hardcoded `fetch("/api/...")`
+  - `V2_ROUTES`
+  - rewrites/redirects in `next.config.ts`
+  - proxy matcher entries
+- After non-trivial changes, at minimum run:
+  - `npm run lint`
+- After Prisma or migration changes, also verify on a safe database before shipping.
+- Because no automated tests were found, manually regression test the affected flow end-to-end:
+  - login
+  - organization selection
+  - capture/create quote
+  - convert quote to order
+  - progress/order status updates
+  - schedule/assignment updates
+  - organization admin changes
+  - admin CRUD changes when relevant
+- If behavior is unclear, say so explicitly in code comments/PR notes. Do not invent background jobs, hidden services, or undocumented API consumers.
