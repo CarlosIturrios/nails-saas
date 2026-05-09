@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "prisma migrate deploy && next build",
     "start": "next start",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/capture-amounts.test.js",
     "lint": "eslint",
     "seed:quote-configs": "node scripts/seed-quote-configs.mjs",
     "postinstall": "prisma generate"

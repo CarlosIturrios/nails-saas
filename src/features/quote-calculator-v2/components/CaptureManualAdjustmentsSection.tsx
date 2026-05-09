@@ -5,6 +5,10 @@ import type {
   QuoteCalculatorTheme,
 } from "@/src/features/quote-calculator-v2/components/QuoteCalculatorV2.shared";
 import { formatMoney } from "@/src/features/quote-calculator-v2/components/QuoteCalculatorV2.shared";
+import {
+  getManualAdjustmentLabel,
+  isNegativeAmount,
+} from "@/src/lib/capture-amounts";
 
 interface CaptureManualAdjustmentsSectionProps {
   manualLabel: string;
@@ -47,7 +51,8 @@ export function CaptureManualAdjustmentsSection({
           <p className="admin-label text-sm font-medium">Ajustes manuales</p>
           <p className="admin-muted text-sm leading-6">
             Agrega conceptos temporales para esta captura si el servicio o producto aún no existe
-            en el sistema.
+            en el sistema. Usa montos positivos para cargos y negativos para descuentos o
+            promociones.
           </p>
         </div>
 
@@ -58,20 +63,22 @@ export function CaptureManualAdjustmentsSection({
               <input
                 value={manualLabel}
                 onChange={(event) => onManualLabelChange(event.target.value)}
-                placeholder="Ejemplo: Producto especial o servicio adicional"
+                placeholder="Ejemplo: Producto especial o descuento especial"
                 className="admin-input px-4 py-3 text-sm"
               />
             </label>
             <div className="grid gap-4 sm:grid-cols-[minmax(0,140px)_auto] xl:grid-cols-[minmax(0,120px)_auto]">
               <label className="space-y-2">
-                <span className="admin-label block text-sm font-medium">Monto</span>
+                <span className="admin-label block text-sm font-medium">
+                  Monto (+ cargo / - descuento)
+                </span>
                 <input
                   type="number"
-                  min="0"
-                  inputMode="numeric"
+                  step="1"
+                  inputMode="decimal"
                   value={manualAmount}
                   onChange={(event) => onManualAmountChange(event.target.value)}
-                  placeholder="Precio"
+                  placeholder="300 o -300"
                   className="admin-input px-4 py-3 text-sm"
                 />
               </label>
@@ -88,35 +95,45 @@ export function CaptureManualAdjustmentsSection({
 
         {manualAdjustments.length > 0 ? (
           <div className="mt-6 space-y-3">
-            {manualAdjustments.map((item) => (
-              <div
-                key={item.id}
-                className="admin-panel flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
-                style={{
-                  background: theme.panelBackground,
-                  borderColor: theme.panelBorder,
-                }}
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold text-slate-950">{item.label}</p>
-                  <p className="admin-muted mt-1 text-sm leading-6">
-                    Ajuste manual visible solo en esta captura.
-                  </p>
+            {manualAdjustments.map((item) => {
+              const isDiscount = isNegativeAmount(item.amount);
+
+              return (
+                <div
+                  key={item.id}
+                  className="admin-panel flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between"
+                  style={{
+                    background: theme.panelBackground,
+                    borderColor: theme.panelBorder,
+                  }}
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-950">{item.label}</p>
+                    <p className="admin-muted mt-1 text-sm leading-6">
+                      {isDiscount
+                        ? "Descuento manual visible solo en esta captura."
+                        : "Ajuste manual visible solo en esta captura."}
+                    </p>
+                  </div>
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+                    <span
+                      className={`text-base font-semibold sm:text-sm ${
+                        isDiscount ? "text-emerald-700" : "text-slate-900"
+                      }`}
+                    >
+                      {formatMoney(item.amount, currency, language)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveManualAdjustment(item.id)}
+                      className="w-full rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 sm:w-auto"
+                    >
+                      Quitar
+                    </button>
+                  </div>
                 </div>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-                  <span className="text-base font-semibold text-slate-900 sm:text-sm">
-                    {formatMoney(item.amount, currency, language)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveManualAdjustment(item.id)}
-                    className="w-full rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600 sm:w-auto"
-                  >
-                    Quitar
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </div>
@@ -134,7 +151,8 @@ export function CaptureManualAdjustmentsSection({
       <div className="flex flex-col gap-2">
         <p className="text-sm font-semibold text-slate-950">Otro concepto rápido</p>
         <p className="text-sm leading-6 text-slate-600">
-          Úsalo cuando necesites cobrar algo que todavía no está en el catálogo.
+          Úsalo cuando necesites cobrar algo que todavía no está en el catálogo o aplicar un
+          descuento temporal.
         </p>
       </div>
 
@@ -159,15 +177,15 @@ export function CaptureManualAdjustmentsSection({
           </label>
           <label className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-              Monto
+              Monto (+ / -)
             </span>
             <input
               type="number"
-              min="0"
-              inputMode="numeric"
+              step="1"
+              inputMode="decimal"
               value={manualAmount}
               onChange={(event) => onManualAmountChange(event.target.value)}
-              placeholder="0"
+              placeholder="300 o -300"
               className="admin-input px-4 py-3 text-sm"
             />
           </label>
@@ -184,33 +202,43 @@ export function CaptureManualAdjustmentsSection({
 
       {manualAdjustments.length > 0 ? (
         <div className="mt-4 space-y-3">
-          {manualAdjustments.map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-col gap-3 rounded-[22px] border p-4 sm:flex-row sm:items-center sm:justify-between"
-              style={{
-                borderColor: theme.panelBorder,
-                background: theme.ticketMutedBackground,
-              }}
-            >
-              <div className="min-w-0">
-                <p className="font-semibold text-slate-950">{item.label}</p>
-                <p className="mt-1 text-sm text-slate-600">Ajuste manual en esta venta</p>
+          {manualAdjustments.map((item) => {
+            const isDiscount = isNegativeAmount(item.amount);
+
+            return (
+              <div
+                key={item.id}
+                className="flex flex-col gap-3 rounded-[22px] border p-4 sm:flex-row sm:items-center sm:justify-between"
+                style={{
+                  borderColor: theme.panelBorder,
+                  background: theme.ticketMutedBackground,
+                }}
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold text-slate-950">{item.label}</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {getManualAdjustmentLabel(item.amount)} en esta venta
+                  </p>
+                </div>
+                <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:justify-end">
+                  <span
+                    className={`text-sm font-semibold ${
+                      isDiscount ? "text-emerald-700" : "text-slate-950"
+                    }`}
+                  >
+                    {formatMoney(item.amount, currency, language)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveManualAdjustment(item.id)}
+                    className="rounded-2xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600"
+                  >
+                    Quitar
+                  </button>
+                </div>
               </div>
-              <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:justify-end">
-                <span className="text-sm font-semibold text-slate-950">
-                  {formatMoney(item.amount, currency, language)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveManualAdjustment(item.id)}
-                  className="rounded-2xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600"
-                >
-                  Quitar
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : null}
     </div>

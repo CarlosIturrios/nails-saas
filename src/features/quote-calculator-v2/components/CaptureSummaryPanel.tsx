@@ -10,6 +10,11 @@ import type {
 } from "@/src/features/quote-calculator-v2/components/QuoteCalculatorV2.shared";
 import { formatMoney } from "@/src/features/quote-calculator-v2/components/QuoteCalculatorV2.shared";
 import { getExtraChargeSummary } from "@/src/features/quote-calculator-v2/lib/extra-display";
+import {
+  getCaptureSummaryStatus,
+  getManualAdjustmentLabel,
+  isNegativeAmount,
+} from "@/src/lib/capture-amounts";
 
 interface CaptureSummaryPanelProps {
   title: string;
@@ -45,7 +50,7 @@ export function CaptureSummaryPanel({
   const lineItemCount = selectedRows.length + extraRows.length + manualAdjustments.length;
   const isPosLayout = theme.layoutVariant !== "stacked";
   const isTouch = theme.layoutVariant === "pos_touch";
-  const ticketStatus = total > 0 ? "Listo para cerrar" : "Sin conceptos";
+  const ticketStatus = getCaptureSummaryStatus(total, lineItemCount);
 
   if (!isPosLayout) {
     return (
@@ -61,7 +66,7 @@ export function CaptureSummaryPanel({
         </p>
         <h2 className="mt-3 text-lg font-semibold text-slate-950">{title}</h2>
 
-        {total === 0 ? (
+        {lineItemCount === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-[#e8ddcc] bg-white/70 p-4">
             <p className="admin-muted text-sm leading-6">{emptyMessage}</p>
           </div>
@@ -129,9 +134,15 @@ export function CaptureSummaryPanel({
                   <div key={row.id} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                     <div className="min-w-0">
                       <span className="block text-slate-700">{row.label}</span>
-                      <span className="admin-muted mt-1 block text-xs leading-5">Ajuste manual</span>
+                      <span className="admin-muted mt-1 block text-xs leading-5">
+                        {getManualAdjustmentLabel(row.amount)}
+                      </span>
                     </div>
-                    <span className="shrink-0 font-semibold text-slate-900">
+                    <span
+                      className={`shrink-0 font-semibold ${
+                        isNegativeAmount(row.amount) ? "text-emerald-700" : "text-slate-900"
+                      }`}
+                    >
                       {formatMoney(row.amount, currency, language)}
                     </span>
                   </div>
@@ -176,9 +187,15 @@ export function CaptureSummaryPanel({
                 <div key={row.id} className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <span className="block text-slate-700">{row.label}</span>
-                    <span className="admin-muted mt-1 block text-xs leading-5">Ajuste manual</span>
+                    <span className="admin-muted mt-1 block text-xs leading-5">
+                      {getManualAdjustmentLabel(row.amount)}
+                    </span>
                   </div>
-                  <span className="shrink-0 font-semibold text-slate-900">
+                  <span
+                    className={`shrink-0 font-semibold ${
+                      isNegativeAmount(row.amount) ? "text-emerald-700" : "text-slate-900"
+                    }`}
+                  >
                     {formatMoney(row.amount, currency, language)}
                   </span>
                 </div>
@@ -244,7 +261,7 @@ export function CaptureSummaryPanel({
         </div>
       </div>
 
-      {total === 0 ? (
+      {lineItemCount === 0 ? (
         <div className="mt-4 rounded-[24px] border border-dashed border-[#d9dce2] bg-white/80 p-4 sm:p-5">
           <p className="text-sm leading-6 text-slate-600">{emptyMessage}</p>
         </div>
@@ -356,11 +373,15 @@ export function CaptureSummaryPanel({
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-950">{row.label}</p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    Ajuste manual
+                    {getManualAdjustmentLabel(row.amount)}
                   </p>
                 </div>
                 <div className="sm:text-right">
-                  <p className="text-sm font-semibold text-slate-950">
+                  <p
+                    className={`text-sm font-semibold ${
+                      isNegativeAmount(row.amount) ? "text-emerald-700" : "text-slate-950"
+                    }`}
+                  >
                     {formatMoney(row.amount, currency, language)}
                   </p>
                   {onRemoveManualAdjustment ? (

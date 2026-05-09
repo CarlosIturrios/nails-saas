@@ -36,7 +36,7 @@ export function CaptureMobileStickyBar({
   onAction,
   onDownloadSummary,
 }: CaptureMobileStickyBarProps) {
-  if (total <= 0 && !canShowWhenEmpty) {
+  if (itemCount === 0 && !canShowWhenEmpty) {
     return null;
   }
 
@@ -85,7 +85,7 @@ export function CaptureMobileStickyBar({
                 <button
                   type="button"
                   onClick={onDownloadSummary}
-                  disabled={downloading}
+                  disabled={itemCount === 0 || total < 0 || downloading}
                   className="inline-flex min-h-11 items-center justify-center rounded-2xl border px-4 text-sm font-semibold text-slate-700"
                   style={{
                     borderColor: theme.panelBorder,

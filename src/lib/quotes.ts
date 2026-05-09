@@ -10,6 +10,10 @@ import {
 } from "@prisma/client";
 
 import { prisma } from "@/src/lib/db";
+import {
+  NEGATIVE_CAPTURE_TOTAL_ERROR_MESSAGE,
+  normalizeSignedMoney,
+} from "@/src/lib/capture-amounts";
 import { resolveClientForCapture } from "@/src/lib/capture-clients";
 import { createServiceOrderFromQuote } from "@/src/lib/service-orders";
 import { getUtcTimestamp, parseNullableToUTC } from "@/src/lib/dates";
@@ -69,7 +73,7 @@ function toInputJson(
 }
 
 function normalizeMoney(value: number) {
-  return Math.max(0, Math.round(value));
+  return normalizeSignedMoney(value);
 }
 
 function normalizeQuantity(value: number | undefined) {
@@ -154,7 +158,7 @@ function normalizeQuoteItems(items: CreateQuoteItemInput[]) {
         metadata: toInputJson(item.metadata ?? null),
       };
     })
-    .filter((item) => item.label.length > 0 && item.total > 0);
+    .filter((item) => item.label.length > 0 && item.total !== 0);
 }
 
 export async function createPersistentQuote(input: CreatePersistentQuoteInput) {
@@ -172,6 +176,10 @@ export async function createPersistentQuote(input: CreatePersistentQuoteInput) {
   });
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
   const total = subtotal;
+
+  if (total < 0) {
+    throw new Error(NEGATIVE_CAPTURE_TOTAL_ERROR_MESSAGE);
+  }
 
   return prisma.quote.create({
     data: {
@@ -259,6 +267,10 @@ export async function updatePersistentQuote(input: UpdatePersistentQuoteInput) {
   });
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
   const total = subtotal;
+
+  if (total < 0) {
+    throw new Error(NEGATIVE_CAPTURE_TOTAL_ERROR_MESSAGE);
+  }
 
   return prisma.quote.update({
     where: {
